@@ -1,6 +1,5 @@
 import os
-from sqlalchemy import create_engine #python library for interacting with PostgreSQL databases using Python classes instead of raw SQL
-#we have to define a job class and map it to the database  
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from dotenv import load_dotenv
 
