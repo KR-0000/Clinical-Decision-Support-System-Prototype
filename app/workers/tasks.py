@@ -13,6 +13,15 @@ celery_app = Celery(
     backend=os.getenv("REDIS_URL")
 )
 
+# Detect whether the Redis URL uses TLS (rediss://) — Upstash requires this.
+# Celery needs explicit ssl_cert_reqs when connecting to a rediss:// URL,
+# otherwise it raises ValueError and refuses to start.
+# CERT_NONE skips certificate verification, which is acceptable for a
+# portfolio project. In production you would use CERT_REQUIRED and provide
+# the CA bundle.
+_redis_url = os.getenv("REDIS_URL", "")
+_ssl_config = {"ssl_cert_reqs": "CERT_NONE"} if _redis_url.startswith("rediss://") else {}
+
 celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
@@ -28,6 +37,11 @@ celery_app.conf.update(
     # If the worker process is killed mid-task (OOM, docker stop),
     # reject the task back to the queue instead of losing it.
     task_reject_on_worker_lost=True,
+
+    # SSL configuration for rediss:// URLs (Upstash in production).
+    # These keys are ignored when _ssl_config is empty (local redis:// URL).
+    broker_use_ssl=_ssl_config or None,
+    redis_backend_use_ssl=_ssl_config or None,
 )
 
 # --- Error classification ---
@@ -76,17 +90,18 @@ def _is_retryable(exc: Exception) -> bool:
     # Non-retryable: PDF had no extractable text, bad file, etc.
     if isinstance(exc, ValueError):
         return False
-    # 400 Bad Request is never transient — wrong model name, bad input, etc.
 
+    # 400 Bad Request errors are never transient — decommissioned model,
+    # malformed request, invalid parameters. Retrying will always fail.
     if isinstance(exc, groq.BadRequestError):
         return False
-    
+
     # Default: retry unknown errors once, they might be transient
     return True
 
 
 @celery_app.task(bind=True, name="process_case", max_retries=3)
-def process_case(self, job_id: str, input_type: str, case_text: str = None, file_ref: str = None):
+def process_case(self, job_id: str, input_type: str, case_text: str = None, file_ref: str = None): # type: ignore
     """
     The main worker task. Runs in a separate process from the API.
 
@@ -123,7 +138,7 @@ def process_case(self, job_id: str, input_type: str, case_text: str = None, file
             logger.error(f"Job {job_id} not found in database — cannot process")
             return
 
-        job.status = JobStatus.processing
+        job.status = JobStatus.processing # type: ignore
         db.commit()
         logger.info(f"Job {job_id}: attempt {self.request.retries + 1} of {self.max_retries + 1}")
 
@@ -159,8 +174,8 @@ def process_case(self, job_id: str, input_type: str, case_text: str = None, file
         )
 
         # --- Step 4: Save result ---
-        job.status = JobStatus.done
-        job.result = result
+        job.status = JobStatus.done # type: ignore
+        job.result = result # type: ignore
         db.commit()
         logger.info(f"Job {job_id}: complete")
 
@@ -177,7 +192,7 @@ def process_case(self, job_id: str, input_type: str, case_text: str = None, file
             try:
                 job = db.query(Job).filter(Job.job_id == job_id).first()
                 if job:
-                    job.status = JobStatus.pending
+                    job.status = JobStatus.pending # type: ignore
                     db.commit()
             except Exception:
                 pass  # DB update failure during retry handling shouldn't mask original error
@@ -202,8 +217,8 @@ def process_case(self, job_id: str, input_type: str, case_text: str = None, file
             try:
                 job = db.query(Job).filter(Job.job_id == job_id).first()
                 if job:
-                    job.status = JobStatus.failed
-                    job.error_message = str(exc)
+                    job.status = JobStatus.failed # type: ignore
+                    job.error_message = str(exc) # type: ignore
                     db.commit()
             except Exception as db_exc:
                 logger.error(f"Job {job_id}: failed to write failed status to DB — {db_exc}")
