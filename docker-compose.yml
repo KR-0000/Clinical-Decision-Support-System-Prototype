@@ -1,0 +1,91 @@
+# docker-compose.yml
+# Runs the full system locally with one command: docker-compose up --build
+#
+# Services:
+#   redis   - message queue (local, replaces Memurai)
+#   api     - FastAPI web server
+#   worker  - Celery background worker
+#
+# Postgres and Supabase Storage are NOT included here.
+# They remain on Supabase cloud even in local Docker development.
+# This keeps your data consistent whether you run Docker or run locally.
+#
+# Why not include Postgres in Docker?
+# You already have a Supabase Postgres instance with your jobs table migrated.
+# Running a second local Postgres in Docker would require re-running migrations
+# and managing two separate databases. It's simpler to keep one database
+# that both local and deployed environments share.
+
+version: "3.8"
+
+services:
+
+  # ── Redis ────────────────────────────────────────────────────────────────
+  # Replaces Memurai when running with Docker.
+  # The API and worker both connect to this container via the service name
+  # "redis" — Docker's internal DNS resolves this automatically.
+  redis:
+    image: redis:7-alpine
+    # alpine is a minimal Linux variant — the Redis image is about 30MB.
+    ports:
+      - "6379:6379"
+    # Restart redis automatically if it crashes.
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── API ──────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Override the default CMD to add --reload for development.
+    # Remove --reload when deploying to production.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    # Load environment variables from your .env file.
+    # The .env file is on your machine, not inside the container.
+    # Docker reads it and injects each variable into the container's environment.
+    env_file:
+      - .env
+    environment:
+      # Override REDIS_URL to point to the redis container, not localhost.
+      # Inside Docker's network, services talk to each other by service name.
+      # "redis" here resolves to the redis container above.
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    # Reload code changes without rebuilding the image.
+    # The local ./app folder is mounted into the container at /app/app.
+    # When you edit a file, uvicorn's --reload picks it up instantly.
+    volumes:
+      - ./app:/app/app
+    restart: unless-stopped
+
+  # ── Worker ───────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Override the default CMD to run Celery instead of uvicorn.
+    # On Linux (inside the container) we do NOT need --pool=solo.
+    # We use --concurrency=2 to allow 2 jobs to process simultaneously.
+    # Increase this if you have a machine with more CPU cores.
+    command: celery -A app.workers.tasks worker --loglevel=info --concurrency=2
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+    restart: unless-stopped
+
+# No named volumes needed — we use Supabase for all persistent storage.

@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clinical Decision Support (CDS) System: Submit Case</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #F5F5F3;
+      --surface:   #FFFFFF;
+      --border:    #DDDBD6;
+      --border-strong: #C4C2BC;
+      --text:      #1C1C1A;
+      --text-secondary: #4A4A46;
+      --muted:     #767670;
+      --emergent:  #C62828;
+      --info:      #1565C0;
+      --info-light: #E8EFF9;
+      --sans:      'Source Sans 3', system-ui, sans-serif;
+      --mono:      'Source Code Pro', monospace;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.55;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 40px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0.01em;
+    }
+
+    .header-divider {
+      width: 1px;
+      height: 16px;
+      background: var(--border-strong);
+    }
+
+    .header-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .header-warning {
+      margin-left: auto;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--emergent);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    /* ── Page layout: two columns ── */
+    .page-layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 0;
+      max-width: 1100px;
+      min-height: calc(100vh - 52px);
+    }
+
+    /* ── Left column: form ── */
+    .form-column {
+      padding: 40px 40px 60px;
+      border-right: 1px solid var(--border);
+    }
+
+    .page-eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+      letter-spacing: -0.01em;
+    }
+
+    .page-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+      max-width: 520px;
+      line-height: 1.6;
+    }
+
+    /* ── Input mode tabs ── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .tab-btn {
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 9px 18px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      margin-bottom: -1px;
+      transition: color 0.12s, border-color 0.12s;
+    }
+
+    .tab-btn.active {
+      color: var(--info);
+      border-bottom-color: var(--info);
+    }
+
+    .tab-btn:hover:not(.active) { color: var(--text); }
+
+    /* ── Input panels ── */
+    .input-panel { display: none; }
+    .input-panel.active { display: block; }
+
+    .field-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .field-hint {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    textarea {
+      width: 100%;
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      resize: vertical;
+      min-height: 200px;
+      outline: none;
+      border-radius: 2px;
+      transition: border-color 0.12s;
+    }
+
+    textarea:focus { border-color: var(--info); }
+    textarea::placeholder { color: #BCBAB4; }
+
+    /* ── File upload ── */
+    .file-drop {
+      border: 1px dashed var(--border-strong);
+      background: var(--surface);
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+      border-radius: 2px;
+      transition: border-color 0.12s, background 0.12s;
+    }
+
+    .file-drop:hover, .file-drop.drag-over {
+      border-color: var(--info);
+      background: var(--info-light);
+    }
+
+    .file-drop input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .file-drop-text {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .file-drop-text strong { color: var(--info); font-weight: 500; }
+    .file-drop-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    .file-selected {
+      display: none;
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--info-light);
+      border: 1px solid #B8CCE8;
+      padding: 8px 12px;
+      border-radius: 2px;
+    }
+
+    .file-selected.visible { display: block; }
+
+    /* ── Submit ── */
+    .submit-row {
+      margin-top: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 28px;
+      background: var(--info);
+      color: #FFFFFF;
+      border: none;
+      border-radius: 2px;
+      cursor: pointer;
+      letter-spacing: 0.01em;
+      transition: background 0.12s;
+    }
+
+    .btn-primary:hover { background: #1255A0; }
+    .btn-primary:disabled { background: #BCBAB4; cursor: not-allowed; }
+
+    .submit-note {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* ── Status bar ── */
+    .status-bar {
+      display: none;
+      margin-top: 16px;
+      padding: 10px 14px;
+      font-size: 13px;
+      border-left: 3px solid var(--border);
+      border-radius: 0 2px 2px 0;
+    }
+
+    .status-bar.visible { display: block; }
+    .status-bar.loading { border-left-color: var(--info); color: var(--info); background: var(--info-light); }
+    .status-bar.error { border-left-color: var(--emergent); color: var(--emergent); background: #FCEAEA; }
+
+    /* ── Right column: guidance ── */
+    .guidance-column {
+      padding: 40px 32px;
+      background: var(--surface);
+    }
+
+    .guidance-header {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .guidance-item {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .guidance-item:last-of-type {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .guidance-item-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .guidance-item-body {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    .guidance-example {
+      margin-top: 24px;
+      padding: 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+    }
+
+    .guidance-example-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .guidance-example p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      font-style: italic;
+    }
+
+    .guidance-note {
+      margin-top: 20px;
+      padding: 12px 14px;
+      background: #FEF9E7;
+      border: 1px solid #F0D78A;
+      border-radius: 2px;
+      font-size: 12px;
+      color: #6D5700;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 820px) {
+      .page-layout { grid-template-columns: 1fr; }
+      .form-column { border-right: none; border-bottom: 1px solid var(--border); padding: 28px 20px 40px; }
+      .guidance-column { padding: 28px 20px; }
+      header { padding: 0 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="header-title">Clinical Decision Support (CDS) System</span>
+  <div class="header-divider"></div>
+  <span class="header-subtitle">Prototype</span>
+  <span class="header-warning">Not for direct patient care</span>
+</header>
+
+<div class="page-layout">
+
+  <!-- Left column: form -->
+  <div class="form-column">
+    <p class="page-eyebrow">Case Submission</p>
+    <h1>Submit a clinical case</h1>
+    <p class="page-desc">Describe the patient presentation or upload a clinical note. The system returns a structured differential with ICD-10 coded conditions, red flags, and suggested next steps.</p>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('text', this)">Text entry</button>
+      <button class="tab-btn" onclick="switchTab('pdf', this)">PDF upload</button>
+    </div>
+
+    <form id="case-form" onsubmit="submitCase(event)">
+
+      <div class="input-panel active" id="panel-text">
+        <label class="field-label" for="case-text">Patient case description</label>
+        <p class="field-hint">Include age, sex, chief complaint, vitals, relevant history, and current medications</p>
+        <textarea
+          id="case-text"
+          name="case_text"
+          placeholder="65-year-old male presenting with sudden onset chest pain radiating to left arm and jaw, diaphoresis, nausea. BP 160/95, HR 108, SpO2 97%, RR 18. History of hypertension and type 2 diabetes. On metformin and lisinopril. 20 pack-year smoking history."
+          spellcheck="false"
+        ></textarea>
+      </div>
+
+      <div class="input-panel" id="panel-pdf">
+        <label class="field-label">Clinical note (PDF)</label>
+        <p class="field-hint">Text-based PDFs only. Scanned image PDFs cannot be processed.</p>
+        <div class="file-drop" id="file-drop">
+          <input type="file" id="pdf-file" name="file" accept=".pdf" onchange="handleFileSelect(this)">
+          <p class="file-drop-text"><strong>Choose a file</strong> or drag it here</p>
+          <p class="file-drop-sub">PDF format only</p>
+        </div>
+        <div class="file-selected" id="file-selected"></div>
+      </div>
+
+      <div class="submit-row">
+        <button type="submit" class="btn-primary" id="submit-btn">Submit for analysis</button>
+        <span class="submit-note">Results ready in approximately 15 to 30 seconds</span>
+      </div>
+    </form>
+
+    <div class="status-bar" id="status-bar"></div>
+  </div>
+
+  <!-- Right column: guidance -->
+  <div class="guidance-column">
+    <p class="guidance-header">What to include</p>
+
+    <div class="guidance-item">
+      <p class="guidance-item-title">Demographics</p>
+      <p class="guidance-item-body">Age, sex, relevant occupational or social history, ethnicity where clinically relevant</p>
+    </div>
+
+    <div class="guidance-item">
+      <p class="guidance-item-title">Presentation</p>
+      <p class="guidance-item-body">Chief complaint, onset and duration, character and severity, associated symptoms, alleviating or aggravating factors</p>
+    </div>
+
+    <div class="guidance-item">
+      <p class="guidance-item-title">Vitals</p>
+      <p class="guidance-item-body">Blood pressure, heart rate, respiratory rate, SpO2, temperature, GCS if neurological involvement</p>
+    </div>
+
+    <div class="guidance-item">
+      <p class="guidance-item-title">Background</p>
+      <p class="guidance-item-body">Past medical history, current medications, allergies, recent procedures or hospitalizations, family history</p>
+    </div>
+
+    <div class="guidance-example">
+      <p class="guidance-example-label">Example input</p>
+      <p>"58-year-old female with sudden onset severe headache rated 10/10, associated neck stiffness and vomiting. BP 178/102, HR 88, temp 37.8C. No prior headache history. No current medications."</p>
+    </div>
+
+    <div class="guidance-note">
+      Output is generated by a large language model and validated against NLM terminology services. ICD-10 codes are verified where possible. This tool does not access patient records and does not store identifying information.
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const API = 'http://127.0.0.1:8000';
+  let activeTab = 'text';
+
+  function switchTab(tab, btn) {
+    activeTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.input-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + tab).classList.add('active');
+  }
+
+  function handleFileSelect(input) {
+    const file = input.files[0];
+    const el = document.getElementById('file-selected');
+    if (file) {
+      el.textContent = 'Selected: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+      el.classList.add('visible');
+    } else {
+      el.classList.remove('visible');
+    }
+  }
+
+  const dropZone = document.getElementById('file-drop');
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type === 'application/pdf') {
+      const input = document.getElementById('pdf-file');
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      handleFileSelect(input);
+    }
+  });
+
+  function setStatus(msg, type) {
+    const el = document.getElementById('status-bar');
+    el.textContent = msg;
+    el.className = 'status-bar visible ' + (type || '');
+  }
+
+  function clearStatus() {
+    document.getElementById('status-bar').className = 'status-bar';
+  }
+
+  async function submitCase(e) {
+    e.preventDefault();
+    clearStatus();
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+
+    const formData = new FormData();
+
+    if (activeTab === 'text') {
+      const text = document.getElementById('case-text').value.trim();
+      if (text.length < 20) {
+        setStatus('Case description is too short. Provide more clinical detail.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Submit for analysis';
+        return;
+      }
+      formData.append('case_text', text);
+    } else {
+      const fileInput = document.getElementById('pdf-file');
+      if (!fileInput.files[0]) {
+        setStatus('No file selected.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Submit for analysis';
+        return;
+      }
+      formData.append('file', fileInput.files[0]);
+    }
+
+    try {
+      setStatus('Submitting case to analysis queue...', 'loading');
+
+      const res = await fetch(API + '/jobs/upload', { method: 'POST', body: formData });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Server error ' + res.status);
+      }
+
+      const data = await res.json();
+      const jobId = data.job_id;
+
+      setStatus('Case queued. Waiting for analysis... (ID: ' + jobId.slice(0, 8) + ')', 'loading');
+      btn.textContent = 'Analyzing...';
+
+      await pollUntilDone(jobId);
+
+    } catch (err) {
+      setStatus('Error: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Submit for analysis';
+    }
+  }
+
+  async function pollUntilDone(jobId) {
+    const btn = document.getElementById('submit-btn');
+    const maxAttempts = 40;
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      await new Promise(r => setTimeout(r, 3000));
+      attempts++;
+
+      try {
+        const res = await fetch(API + '/jobs/status/' + jobId);
+        if (!res.ok) continue;
+        const data = await res.json();
+
+        if (data.status === 'done') {
+          window.location.href = 'result.html?job_id=' + jobId;
+          return;
+        }
+
+        if (data.status === 'failed') {
+          setStatus('Analysis failed. See result page for details.', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Submit for analysis';
+          return;
+        }
+
+        const label = data.status === 'processing' ? 'Processing with AI...' : 'Queued, waiting for worker...';
+        setStatus(label + ' (' + (attempts * 3) + 's elapsed)', 'loading');
+
+      } catch (_) { /* network blip, keep polling */ }
+    }
+
+    setStatus('Timed out. Check result manually at result.html?job_id=' + jobId, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Submit for analysis';
+  }
+</script>
+</body>
+</html>

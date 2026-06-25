@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clinical Decision Support (CDS) System: Result</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #F5F5F3;
+      --surface:      #FFFFFF;
+      --border:       #DDDBD6;
+      --border-strong:#C4C2BC;
+      --text:         #1C1C1A;
+      --text-secondary:#4A4A46;
+      --muted:        #767670;
+      --emergent:     #C62828;
+      --emergent-bg:  #FCEAEA;
+      --urgent:       #E65100;
+      --urgent-bg:    #FEF0E6;
+      --semi:         #6D4C00;
+      --semi-bg:      #FEF7E0;
+      --non:          #1B5E20;
+      --non-bg:       #EBF5EB;
+      --info:         #1565C0;
+      --info-light:   #E8EFF9;
+      --verified:     #1B5E20;
+      --verified-bg:  #EBF5EB;
+      --sans:         'Source Sans 3', system-ui, sans-serif;
+      --mono:         'Source Code Pro', monospace;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.55;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 40px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0.01em;
+    }
+
+    .header-divider {
+      width: 1px;
+      height: 16px;
+      background: var(--border-strong);
+    }
+
+    .header-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .header-warning {
+      margin-left: auto;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--emergent);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    /* ── State screens (loading / error) ── */
+    .state-screen {
+      padding: 64px 40px;
+      max-width: 600px;
+    }
+
+    .state-eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .state-message {
+      font-size: 18px;
+      font-weight: 400;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .state-detail {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-top: 24px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--info);
+      text-decoration: none;
+    }
+
+    .back-link:hover { text-decoration: underline; }
+
+    /* ── Urgency banner ── */
+    .urgency-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 18px 40px;
+    }
+
+    .urgency-banner.emergent   { background: var(--emergent); }
+    .urgency-banner.urgent     { background: var(--urgent); }
+    .urgency-banner.semi-urgent{ background: #8D6200; }
+    .urgency-banner.non-urgent { background: var(--non); }
+
+    .urgency-level {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #FFFFFF;
+    }
+
+    .urgency-sep {
+      width: 1px;
+      height: 24px;
+      background: rgba(255,255,255,0.35);
+    }
+
+    .urgency-descriptor {
+      font-size: 13px;
+      color: rgba(255,255,255,0.85);
+      font-weight: 400;
+    }
+
+    /* ── Result body: two columns ── */
+    .result-body {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      align-items: start;
+    }
+
+    /* ── Main column ── */
+    .result-main {
+      padding: 36px 40px 64px;
+      border-right: 1px solid var(--border);
+    }
+
+    /* ── Section pattern ── */
+    .section {
+      margin-bottom: 36px;
+      padding-bottom: 36px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    /* ── Patient summary ── */
+    .patient-summary-text {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    /* ── Conditions ── */
+    .condition-item {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .condition-item:last-child { border-bottom: none; }
+
+    .condition-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .likelihood-tag {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border: 1px solid;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-top: 3px;
+      border-radius: 2px;
+    }
+
+    .likelihood-tag.high     { color: var(--emergent); border-color: #E57373; background: var(--emergent-bg); }
+    .likelihood-tag.moderate { color: var(--urgent);   border-color: #FFB74D; background: var(--urgent-bg); }
+    .likelihood-tag.low      { color: var(--muted);    border-color: var(--border-strong); background: transparent; }
+
+    .condition-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.3;
+    }
+
+    .condition-icd-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .icd-code {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--info);
+      letter-spacing: 0.04em;
+    }
+
+    .icd-desc {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .icd-badge {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border: 1px solid;
+      border-radius: 2px;
+    }
+
+    .icd-badge.verified   { color: var(--verified); border-color: #81C784; background: var(--verified-bg); }
+    .icd-badge.unverified { color: var(--muted);    border-color: var(--border-strong); background: transparent; }
+
+    .condition-reasoning {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+    }
+
+    /* ── Clinical note ── */
+    .clinical-note-box {
+      padding: 14px 16px;
+      border-left: 3px solid var(--border-strong);
+      background: var(--surface);
+    }
+
+    .clinical-note-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .clinical-note-text {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-style: italic;
+      line-height: 1.65;
+    }
+
+    /* ── Sidebar ── */
+    .result-sidebar {
+      padding: 36px 32px 64px;
+      background: var(--surface);
+    }
+
+    .sidebar-section {
+      margin-bottom: 28px;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-section:last-of-type {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .sidebar-list {
+      list-style: none;
+    }
+
+    .sidebar-list li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 13px;
+      color: var(--text-secondary);
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.5;
+    }
+
+    .sidebar-list li:last-child { border-bottom: none; }
+
+    .list-icon {
+      flex-shrink: 0;
+      font-size: 11px;
+      margin-top: 2px;
+      font-weight: 700;
+    }
+
+    .red-flags .list-icon  { color: var(--emergent); }
+    .next-steps .list-icon { color: var(--info); }
+    .missing    .list-icon { color: var(--muted); }
+
+    /* ── Job meta ── */
+    .job-meta {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .meta-row {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .meta-value {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .new-case-link {
+      display: inline-block;
+      margin-top: 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--info);
+      text-decoration: none;
+    }
+
+    .new-case-link:hover { text-decoration: underline; }
+
+    @media (max-width: 860px) {
+      .result-body { grid-template-columns: 1fr; }
+      .result-main { border-right: none; border-bottom: 1px solid var(--border); padding: 28px 20px 40px; }
+      .result-sidebar { padding: 28px 20px; }
+      header { padding: 0 20px; }
+      .urgency-banner { padding-left: 20px; padding-right: 20px; }
+      .state-screen { padding: 40px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="header-title">Clinical Decision Support (CDS) System</span>
+  <div class="header-divider"></div>
+  <span class="header-subtitle">Prototype</span>
+  <span class="header-warning">Not for direct patient care</span>
+</header>
+
+<div id="app">
+  <div class="state-screen">
+    <p class="state-eyebrow">Loading</p>
+    <p class="state-message">Retrieving analysis result...</p>
+  </div>
+</div>
+
+<script>
+  const API = 'http://127.0.0.1:8000';
+
+  function getJobId() {
+    return new URLSearchParams(window.location.search).get('job_id');
+  }
+
+  function esc(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function urgencyClass(u) {
+    const map = {
+      'Emergent': 'emergent',
+      'Urgent': 'urgent',
+      'Semi-urgent': 'semi-urgent',
+      'Non-urgent': 'non-urgent'
+    };
+    return map[u] || 'non-urgent';
+  }
+
+  function renderError(title, detail) {
+    document.getElementById('app').innerHTML =
+      '<div class="state-screen">' +
+        '<p class="state-eyebrow">Error</p>' +
+        '<p class="state-message" style="color:var(--emergent)">' + esc(title) + '</p>' +
+        (detail ? '<p class="state-detail" style="margin-top:10px">' + esc(detail) + '</p>' : '') +
+        '<a href="index.html" class="back-link">Submit a new case</a>' +
+      '</div>';
+  }
+
+  function renderResult(result, jobId, createdAt) {
+    const urgency   = result.urgency || 'Non-urgent';
+    const uClass    = urgencyClass(urgency);
+    const conditions = result.possible_conditions || [];
+    const redFlags   = result.red_flags || [];
+    const nextSteps  = result.suggested_next_steps || [];
+    const missing    = result.missing_information || [];
+
+    /* Urgency banner */
+    const urgencyHtml =
+      '<div class="urgency-banner ' + uClass + '" role="alert">' +
+        '<span class="urgency-level">' + esc(urgency) + '</span>' +
+        '<div class="urgency-sep"></div>' +
+        '<span class="urgency-descriptor">Clinical urgency assessment</span>' +
+      '</div>';
+
+    /* Conditions */
+    const conditionsHtml = conditions.length
+      ? conditions.map(function(c) {
+          const lClass = (c.likelihood || 'low').toLowerCase();
+          const verified = c.icd10_verified
+            ? '<span class="icd-badge verified">NLM verified</span>'
+            : '<span class="icd-badge unverified">Unverified</span>';
+          const descPart = c.icd10_description
+            ? '<span class="icd-desc">' + esc(c.icd10_description) + '</span>'
+            : '';
+          return (
+            '<div class="condition-item">' +
+              '<div class="condition-top">' +
+                '<span class="likelihood-tag ' + lClass + '">' + esc(c.likelihood || '') + '</span>' +
+                '<span class="condition-name">' + esc(c.condition || '') + '</span>' +
+              '</div>' +
+              '<div class="condition-icd-row">' +
+                '<span class="icd-code">' + esc(c.icd10 || '') + '</span>' +
+                descPart +
+                verified +
+              '</div>' +
+              '<p class="condition-reasoning">' + esc(c.reasoning || '') + '</p>' +
+            '</div>'
+          );
+        }).join('')
+      : '<p style="font-size:14px;color:var(--muted)">No conditions returned.</p>';
+
+    /* Clinical note */
+    const noteHtml = result.clinical_note
+      ? '<div class="clinical-note-box">' +
+          '<p class="clinical-note-label">Clinical reasoning note</p>' +
+          '<p class="clinical-note-text">' + esc(result.clinical_note) + '</p>' +
+        '</div>'
+      : '';
+
+    /* Sidebar lists */
+    function makeList(items, cls, icon) {
+      return items.map(function(item) {
+        return '<li><span class="list-icon">' + icon + '</span><span>' + esc(item) + '</span></li>';
+      }).join('');
+    }
+
+    const flagsHtml = redFlags.length
+      ? '<div class="sidebar-section">' +
+          '<p class="section-label">Red flags</p>' +
+          '<ul class="sidebar-list red-flags">' + makeList(redFlags, 'red-flags', '▲') + '</ul>' +
+        '</div>'
+      : '';
+
+    const stepsHtml = nextSteps.length
+      ? '<div class="sidebar-section">' +
+          '<p class="section-label">Suggested next steps</p>' +
+          '<ul class="sidebar-list next-steps">' +
+            nextSteps.map(function(s, i) {
+              return '<li><span class="list-icon">' + (i + 1) + '.</span><span>' + esc(s) + '</span></li>';
+            }).join('') +
+          '</ul>' +
+        '</div>'
+      : '';
+
+    const missingHtml = missing.length
+      ? '<div class="sidebar-section">' +
+          '<p class="section-label">Missing information</p>' +
+          '<ul class="sidebar-list missing">' + makeList(missing, 'missing', '?') + '</ul>' +
+        '</div>'
+      : '';
+
+    const dateStr = createdAt
+      ? new Date(createdAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+      : 'Unknown';
+
+    const verifiedCount = conditions.filter(function(c) { return c.icd10_verified; }).length;
+
+    document.getElementById('app').innerHTML =
+      urgencyHtml +
+      '<div class="result-body">' +
+
+        '<div class="result-main">' +
+
+          '<div class="section">' +
+            '<p class="section-label">Patient summary</p>' +
+            '<p class="patient-summary-text">' + esc(result.patient_summary || '') + '</p>' +
+          '</div>' +
+
+          '<div class="section">' +
+            '<p class="section-label">Differential diagnosis &nbsp;&middot;&nbsp; ' +
+              conditions.length + ' condition' + (conditions.length !== 1 ? 's' : '') +
+              ' &nbsp;&middot;&nbsp; ' + verifiedCount + ' of ' + conditions.length + ' ICD-10 codes NLM verified' +
+            '</p>' +
+            conditionsHtml +
+          '</div>' +
+
+          (noteHtml
+            ? '<div class="section">' + noteHtml + '</div>'
+            : '') +
+
+        '</div>' +
+
+        '<div class="result-sidebar">' +
+          flagsHtml +
+          stepsHtml +
+          missingHtml +
+          '<div class="job-meta">' +
+            '<p class="meta-row">Job ID</p>' +
+            '<p class="meta-value">' + esc(jobId) + '</p>' +
+            '<p class="meta-row" style="margin-top:10px">Analyzed</p>' +
+            '<p class="meta-value">' + esc(dateStr) + '</p>' +
+          '</div>' +
+          '<a href="index.html" class="new-case-link">Submit a new case</a>' +
+        '</div>' +
+
+      '</div>';
+  }
+
+  async function loadResult() {
+    const jobId = getJobId();
+
+    if (!jobId) {
+      renderError('No job ID provided.', 'Return to the submission page and analyze a case first.');
+      return;
+    }
+
+    try {
+      const res = await fetch(API + '/jobs/result/' + jobId);
+
+      if (!res.ok) {
+        if (res.status === 404) {
+          renderError('Job not found.', 'No job exists with ID: ' + jobId);
+        } else {
+          renderError('Server error (' + res.status + ').', 'The API returned an unexpected response.');
+        }
+        return;
+      }
+
+      const data = await res.json();
+
+      if (data.status === 'failed') {
+        renderError('Analysis failed.', data.error_message || 'An unknown error occurred.');
+        return;
+      }
+
+      if (data.status === 'pending' || data.status === 'processing') {
+        document.getElementById('app').innerHTML =
+          '<div class="state-screen">' +
+            '<p class="state-eyebrow">In progress</p>' +
+            '<p class="state-message">Job is ' + data.status + '.</p>' +
+            '<p class="state-detail">Refresh this page in a few seconds.</p>' +
+            '<a href="index.html" class="back-link">Back to submission</a>' +
+          '</div>';
+        return;
+      }
+
+      if (!data.result) {
+        renderError('Result is empty.', 'The job completed but returned no data.');
+        return;
+      }
+
+      /* Fetch created_at from status endpoint */
+      let createdAt = null;
+      try {
+        const sr = await fetch(API + '/jobs/status/' + jobId);
+        if (sr.ok) {
+          const sd = await sr.json();
+          createdAt = sd.created_at;
+        }
+      } catch (_) {}
+
+      renderResult(data.result, jobId, createdAt);
+
+    } catch (err) {
+      renderError(
+        'Could not reach the API.',
+        'Make sure the backend is running at ' + API + '. Error: ' + err.message
+      );
+    }
+  }
+
+  loadResult();
+</script>
+</body>
+</html>

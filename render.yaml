@@ -1,0 +1,60 @@
+# render.yaml
+# Render Blueprint file — defines all services for this project.
+# Render reads this file from your repo root and provisions everything automatically.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Services defined here:
+#   cds-api    - FastAPI web service (free tier)
+#   cds-worker - Celery background worker (free tier)
+#
+# External services (not managed by Render):
+#   Postgres   - Supabase (already set up)
+#   Storage    - Supabase (already set up)
+#   Redis      - Upstash (set up during deployment steps)
+#   AI         - Groq (already set up)
+
+services:
+
+  # ── API Service ───────────────────────────────────────────────────────────
+  - type: web
+    name: cds-api
+    runtime: docker
+    # Render builds from your Dockerfile automatically.
+    # It uses the CMD in your Dockerfile: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    dockerfilePath: ./Dockerfile
+    plan: free
+    # Render's free tier web services spin down after 15 minutes of inactivity.
+    # The first request after spin-down takes 30-60 seconds.
+    # This is acceptable for a portfolio prototype.
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false          # sync: false means you set this in the Render dashboard
+      - key: REDIS_URL
+        sync: false          # set to your Upstash Redis URL in the dashboard
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+  # ── Worker Service ────────────────────────────────────────────────────────
+  - type: worker
+    name: cds-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # Override the Dockerfile CMD to run Celery instead of uvicorn.
+    dockerCommand: celery -A app.workers.tasks worker --loglevel=info --concurrency=1
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false

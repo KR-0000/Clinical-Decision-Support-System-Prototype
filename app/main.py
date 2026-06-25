@@ -1,5 +1,7 @@
 import logging
+import os
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 from app.routers.jobs import router as jobs_router
@@ -16,17 +18,29 @@ logging.basicConfig(
 )
 
 app = FastAPI(
-    title="Clinical Case Analysis Pipeline",
+    title="Clinical Decision Support (CDS) System",
     description=(
         "Decision support tool for clinicians. "
         "Submit a patient case as text or PDF and receive a structured differential "
         "with possible conditions, red flags, and suggested next steps. "
-        "This tool supports clinical reasoning — it does not replace it."
+        "This tool supports clinical reasoning -- it does not replace it."
     ),
     version="0.1.0"
 )
 
-# Register the jobs router — this adds all /jobs/* endpoints to the app
+# CORS middleware: required for the frontend HTML files to talk to this API
+# when opened directly in a browser (file:// protocol).
+# allow_origins=["*"] is safe for local development.
+# In production, restrict this to your actual deployed frontend domain.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register the jobs router — adds all /jobs/* endpoints to the app
 app.include_router(jobs_router)
 
 
