@@ -55,7 +55,9 @@ services:
     # This overrides the default CMD ["uvicorn", ...] in the Dockerfile.
     # --concurrency=1 matches the free plan's 512MB RAM limit.
     # On the free plan, one concurrent worker is the safe ceiling.
-    dockerCommand: celery -A app.workers.tasks worker --loglevel=info --concurrency=1
+    # Run the health server in the background first (satisfies Render port binding),
+    # then start Celery in the foreground. If Celery exits, the container exits.
+    dockerCommand: sh -c "python worker_health.py & celery -A app.workers.tasks worker --loglevel=info --concurrency=1"
     plan: free
     # No healthCheckPath — this service does not serve HTTP.
     # Render will show it as "live" once the container starts and stays running.
