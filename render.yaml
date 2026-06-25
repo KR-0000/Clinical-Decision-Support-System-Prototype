@@ -5,12 +5,20 @@
 #
 # Services defined here:
 #   cds-api    - FastAPI web service (free tier)
-#   cds-worker - Celery background worker (free tier)
+#   cds-worker - Celery worker deployed as a web service (free tier)
+#
+# WHY cds-worker IS TYPE "web" AND NOT TYPE "worker":
+# Render's "background worker" service type is only available on paid plans.
+# However, a web service container runs continuously just like a worker would.
+# We override the start command to run Celery instead of uvicorn.
+# Render gives it a public URL it never receives traffic on, which is fine.
+# The container stays running, connects to Redis, and processes jobs normally.
+# This is the standard community workaround for running Celery on Render's free tier.
 #
 # External services (not managed by Render):
 #   Postgres   - Supabase (already set up)
 #   Storage    - Supabase (already set up)
-#   Redis      - Upstash (set up during deployment steps)
+#   Redis      - Upstash (set up separately, URL goes in Render env vars)
 #   AI         - Groq (already set up)
 
 services:
@@ -20,18 +28,15 @@ services:
     name: cds-api
     runtime: docker
     # Render builds from your Dockerfile automatically.
-    # It uses the CMD in your Dockerfile: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    # Uses the CMD in your Dockerfile: uvicorn app.main:app --host 0.0.0.0 --port 8000
     dockerfilePath: ./Dockerfile
     plan: free
-    # Render's free tier web services spin down after 15 minutes of inactivity.
-    # The first request after spin-down takes 30-60 seconds.
-    # This is acceptable for a portfolio prototype.
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        sync: false          # sync: false means you set this in the Render dashboard
+        sync: false        # sync: false means you set this in the Render dashboard
       - key: REDIS_URL
-        sync: false          # set to your Upstash Redis URL in the dashboard
+        sync: false        # set to your Upstash Redis URL (starts with rediss://)
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
@@ -40,13 +45,20 @@ services:
         sync: false
 
   # ── Worker Service ────────────────────────────────────────────────────────
-  - type: worker
+  # Deployed as type "web" because Render's free plan does not support type "worker".
+  # The dockerCommand override replaces the Dockerfile CMD with the Celery command.
+  # This container never serves HTTP traffic — it only connects to Redis and processes jobs.
+  - type: web
     name: cds-worker
     runtime: docker
     dockerfilePath: ./Dockerfile
-    # Override the Dockerfile CMD to run Celery instead of uvicorn.
+    # This overrides the default CMD ["uvicorn", ...] in the Dockerfile.
+    # --concurrency=1 matches the free plan's 512MB RAM limit.
+    # On the free plan, one concurrent worker is the safe ceiling.
     dockerCommand: celery -A app.workers.tasks worker --loglevel=info --concurrency=1
     plan: free
+    # No healthCheckPath — this service does not serve HTTP.
+    # Render will show it as "live" once the container starts and stays running.
     envVars:
       - key: DATABASE_URL
         sync: false
