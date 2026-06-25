@@ -14,13 +14,15 @@ celery_app = Celery(
 )
 
 # Detect whether the Redis URL uses TLS (rediss://) — Upstash requires this.
-# Celery needs explicit ssl_cert_reqs when connecting to a rediss:// URL,
-# otherwise it raises ValueError and refuses to start.
-# CERT_NONE skips certificate verification, which is acceptable for a
-# portfolio project. In production you would use CERT_REQUIRED and provide
-# the CA bundle.
+# Celery needs explicit ssl_cert_reqs when connecting to a rediss:// URL.
+# We must pass ssl.CERT_NONE (the integer constant from Python's ssl module),
+# NOT the string "CERT_NONE" — redis-py rejects the string form with
+# "Invalid SSL Certificate Requirements Flag".
+# CERT_NONE skips certificate verification, acceptable for a portfolio prototype.
+# In production you would use ssl.CERT_REQUIRED with a proper CA bundle.
+import ssl as _ssl_module
 _redis_url = os.getenv("REDIS_URL", "")
-_ssl_config = {"ssl_cert_reqs": "CERT_NONE"} if _redis_url.startswith("rediss://") else {}
+_ssl_config = {"ssl_cert_reqs": _ssl_module.CERT_NONE} if _redis_url.startswith("rediss://") else {}
 
 celery_app.conf.update(
     task_serializer="json",
@@ -101,7 +103,7 @@ def _is_retryable(exc: Exception) -> bool:
 
 
 @celery_app.task(bind=True, name="process_case", max_retries=3)
-def process_case(self, job_id: str, input_type: str, case_text: str = None, file_ref: str = None): # type: ignore
+def process_case(self, job_id: str, input_type: str, case_text: str = None, file_ref: str = None):
     """
     The main worker task. Runs in a separate process from the API.
 
@@ -138,7 +140,7 @@ def process_case(self, job_id: str, input_type: str, case_text: str = None, file
             logger.error(f"Job {job_id} not found in database — cannot process")
             return
 
-        job.status = JobStatus.processing # type: ignore
+        job.status = JobStatus.processing
         db.commit()
         logger.info(f"Job {job_id}: attempt {self.request.retries + 1} of {self.max_retries + 1}")
 
@@ -174,8 +176,8 @@ def process_case(self, job_id: str, input_type: str, case_text: str = None, file
         )
 
         # --- Step 4: Save result ---
-        job.status = JobStatus.done # type: ignore
-        job.result = result # type: ignore
+        job.status = JobStatus.done
+        job.result = result
         db.commit()
         logger.info(f"Job {job_id}: complete")
 
@@ -192,7 +194,7 @@ def process_case(self, job_id: str, input_type: str, case_text: str = None, file
             try:
                 job = db.query(Job).filter(Job.job_id == job_id).first()
                 if job:
-                    job.status = JobStatus.pending # type: ignore
+                    job.status = JobStatus.pending
                     db.commit()
             except Exception:
                 pass  # DB update failure during retry handling shouldn't mask original error
@@ -217,8 +219,8 @@ def process_case(self, job_id: str, input_type: str, case_text: str = None, file
             try:
                 job = db.query(Job).filter(Job.job_id == job_id).first()
                 if job:
-                    job.status = JobStatus.failed # type: ignore
-                    job.error_message = str(exc) # type: ignore
+                    job.status = JobStatus.failed
+                    job.error_message = str(exc)
                     db.commit()
             except Exception as db_exc:
                 logger.error(f"Job {job_id}: failed to write failed status to DB — {db_exc}")
