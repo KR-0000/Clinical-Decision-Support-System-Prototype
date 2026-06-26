@@ -1,8 +1,16 @@
-# Clinical Decision Support System
+# Clinical Decision Support System (Prototype)
 
-A decision support tool for clinicians. Submit a patient case as free-text or a PDF clinical note and receive a structured differential with possible diagnoses, ICD-10 codes, red flags, and suggested next steps.
+A decision support tool for clinicians. Submit a patient case as free-text or a PDF clinical summary and receive a structured differential with possible conditions, ICD-10 codes, red flags, and suggested next steps.
 
-**Intended audience:** Medical professionals looking for a second-pass reasoning aid. This tool supports clinical judgment — it does not replace it and must not be used as a standalone diagnostic instrument.
+## Background and motivation
+
+Consider a common care transition scenario: a patient visits their primary care physician, who determines they need hospital-level care. The physician writes a referral and prepares a clinical summary documenting the patient's history, current medications, vitals, and preliminary findings. When the patient arrives at the hospital and is being admitted, the receiving clinician needs to quickly orient themselves to that documentation before deciding on a course of action.
+
+This tool is designed for that kind of moment. A clinician can paste in a clinical summary or upload it as a PDF, and receive a structured output covering likely conditions, urgency level, red flags that may require immediate attention, and suggested next diagnostic steps. The intent is to reduce the cognitive load of synthesizing a dense referral document under time pressure, not to replace the clinician's judgment.
+
+Healthcare systems in the US already handle care transitions at scale through EHR integrations and HL7 data exchange pipelines. This project is my attempt to prototype the core problem at a smaller scale, and to build hands-on experience with the full engineering stack involved: async task queues, LLM APIs, structured output validation, containerization, and cloud deployment. It is not production software and has not been validated clinically.
+
+**Intended audience:** Medical professionals or developers evaluating the tool's behavior. This tool supports clinical reasoning and must not be used as a standalone diagnostic instrument.
 
 ---
 
@@ -11,41 +19,43 @@ A decision support tool for clinicians. Submit a patient case as free-text or a 
 ```
   Browser / Frontend (Render Static)
         |
-        | POST /jobs/upload  (multipart/form-data — text or PDF)
+        | POST /jobs/upload  (multipart/form-data: text or PDF)
         v
-  ┌─────────────────────────────────────────┐
-  │           FastAPI  (cds-api)            │
-  │  • validates input, enforces 10 MB cap  │
-  │  • rate-limited: 10 req/min per IP      │
-  │  • creates Job row → returns job_id     │
-  └────────────────┬────────────────────────┘
-                   │ process_case.delay(job_id, ...)
+  +-----------------------------------------+
+  |           FastAPI  (cds-api)            |
+  |  * validates input, enforces 10 MB cap  |
+  |  * rate-limited: 10 req/min per IP      |
+  |  * creates Job row -> returns job_id    |
+  +----------------+------------------------+
+                   |
+                   | process_case.delay(job_id, ...)
                    v
-  ┌─────────────────────────────────────────┐
-  │        Upstash Redis  (rediss://)       │
-  │        Celery task queue / result store │
-  └────────────────┬────────────────────────┘
-                   │ worker picks up task
+  +-----------------------------------------+
+  |        Upstash Redis  (rediss://)       |
+  |        Celery task queue / result store |
+  +----------------+------------------------+
+                   |
+                   | worker picks up task
                    v
-  ┌─────────────────────────────────────────┐
-  │        Celery Worker  (cds-worker)      │
-  │  1. download PDF from Supabase Storage  │
-  │     (if input_type == "pdf")            │
-  │  2. extract text  (pdfplumber)          │
-  │  3. analyze case  (Groq LLM)            │
-  │  4. verify ICD-10 codes  (NLM API)      │
-  │  5. write result → Job row              │
-  └──────┬──────────────────────┬───────────┘
-         │                      │
-         v                      v
-  ┌─────────────┐      ┌────────────────────┐
-  │  Supabase   │      │  Supabase Postgres  │
-  │  Storage    │      │  jobs table         │
-  │  (PDF blobs)│      │  (status + result)  │
-  └─────────────┘      └────────────────────┘
+  +-----------------------------------------+
+  |        Celery Worker  (cds-worker)      |
+  |  1. download PDF from Supabase Storage  |
+  |     (if input_type == "pdf")            |
+  |  2. extract text  (pdfplumber)          |
+  |  3. analyze case  (Groq LLM)            |
+  |  4. verify ICD-10 codes  (NLM API)      |
+  |  5. write result -> Job row             |
+  +------+--------------------+-------------+
+         |                    |
+         v                    v
+  +-------------+    +--------------------+
+  |  Supabase   |    |  Supabase Postgres |
+  |  Storage    |    |  jobs table        |
+  |  (PDF blobs)|    |  (status + result) |
+  +-------------+    +--------------------+
                    ^
-                   │ GET /jobs/status/{job_id}
-                   │ GET /jobs/result/{job_id}
+                   | GET /jobs/status/{job_id}
+                   | GET /jobs/result/{job_id}
         Browser polls until status == "done"
 ```
 
@@ -60,7 +70,7 @@ A decision support tool for clinicians. Submit a patient case as free-text or a 
 | Message broker / result backend | Upstash Redis (TLS, `rediss://`) |
 | Database | Supabase Postgres via SQLAlchemy 2.0 |
 | File storage | Supabase Storage |
-| LLM | Groq — `llama-3.3-70b-versatile` |
+| LLM | Groq (`llama-3.3-70b-versatile`) |
 | PDF extraction | pdfplumber |
 | ICD-10 verification | NLM ICD-10-CM API (no key required) |
 | Rate limiting | slowapi (10 req/min on `/jobs/upload`) |
@@ -76,7 +86,7 @@ A decision support tool for clinicians. Submit a patient case as free-text or a 
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/jobs/upload` | Submit a case (text or PDF). Returns `job_id`. |
-| `GET` | `/jobs/status/{job_id}` | Poll job status: `pending` → `processing` → `done` / `failed` |
+| `GET` | `/jobs/status/{job_id}` | Poll job status: `pending` -> `processing` -> `done` / `failed` |
 | `GET` | `/jobs/result/{job_id}` | Retrieve structured differential once status is `done` |
 | `GET` | `/health` | Health check |
 | `GET` | `/docs` | Interactive API docs (Swagger UI) |
@@ -119,14 +129,14 @@ A decision support tool for clinicians. Submit a patient case as free-text or a 
 
 ### Render free-tier cold start
 
-Both the API and Worker run on Render's free plan, which spins down containers after ~15 minutes of inactivity. The Worker must be awake before a case submission will process.
+Both the API and Worker run on Render's free plan, which spins down containers after roughly 15 minutes of inactivity. The Worker must be awake before a case submission will process.
 
 **Before using the frontend, visit the worker URL first:**
 
-1. Open https://cds-worker.onrender.com/ in a new tab and wait for it to return `worker alive` (up to ~60 seconds on a cold start).
+1. Open https://cds-worker.onrender.com/ in a new tab and wait for it to return `worker alive` (up to 60 seconds on a cold start).
 2. Then open the frontend and submit a case normally.
 
-Skipping this step will cause the frontend to spin indefinitely after submission — the worker container is asleep and not consuming tasks from Redis.
+Skipping this step will cause the frontend to spin indefinitely after submission. The worker container is asleep and not consuming tasks from Redis, so submitted jobs never get picked up.
 
 ---
 
@@ -146,17 +156,17 @@ uv sync --group dev
 # Run database migrations
 uv run alembic upgrade head
 
-# Terminal 1 — start the API
+# Terminal 1: start the API
 uv run uvicorn app.main:app --reload
 
-# Terminal 2 — start the Celery worker
+# Terminal 2: start the Celery worker
 # Windows requires --pool=solo (no fork support)
 uv run celery -A app.workers.tasks worker --loglevel=info --pool=solo
 ```
 
-API: http://localhost:8000 — Docs: http://localhost:8000/docs
+API: http://localhost:8000 | Docs: http://localhost:8000/docs
 
-> **Windows / Redis:** You need a local Redis instance. [Memurai](https://www.memurai.com/) is a free Redis-compatible server for Windows. If you use Docker Compose (below), Redis is included automatically.
+> **Windows / Redis:** A local Redis instance is required. [Memurai](https://www.memurai.com/) is a free Redis-compatible server for Windows. If you use Docker Compose instead, Redis is included automatically.
 
 ### Run with Docker Compose
 
@@ -185,7 +195,7 @@ API: http://localhost:8000
 | `DATABASE_URL` | Supabase Postgres connection string |
 | `REDIS_URL` | `redis://localhost:6379/0` locally; `rediss://...` for Upstash in production |
 | `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_KEY` | Supabase `service_role` key — grants full DB access, keep this secret |
+| `SUPABASE_KEY` | Supabase `service_role` key (grants full DB access; keep this secret) |
 | `GROQ_API_KEY` | Groq API key |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins. Omit locally (defaults to `*`). Set to the exact frontend URL in production. |
 
@@ -197,17 +207,17 @@ API: http://localhost:8000
 uv run python -m pytest tests/ -v
 ```
 
-219 tests, all passing in under 3 seconds. Zero real network calls — Groq, Supabase, NLM, and Redis are all mocked.
+219 tests, all passing in under 3 seconds. Zero real network calls; Groq, Supabase, NLM, and Redis are all mocked.
 
 | File | Tests | What it covers |
 |---|---|---|
-| `test_ai_validation.py` | 28 | `analyze_case`, `_validate_response` — all required fields, invalid values, JSON parse failures, Groq error propagation |
+| `test_ai_validation.py` | 28 | `analyze_case`, `_validate_response`: all required fields, invalid values, JSON parse failures, Groq error propagation |
 | `test_retry_classification.py` | 15 | `_is_retryable()` for every Groq exception type and Celery `SoftTimeLimitExceeded` |
-| `test_pdf_extraction.py` | 9 | `extract_text` — success, blank page skipping, no-text `ValueError` |
-| `test_terminology.py` | 12 | NLM ICD-10-CM lookup — success, 404, network error, malformed response |
-| `test_endpoints.py` | 18 | All FastAPI routes — text/PDF upload, status polling, result retrieval, error cases |
-| `test_worker_task.py` | 7 | Celery `process_case` task — text/PDF paths, retryable vs non-retryable failures, ICD-10 enrichment |
-| `test_clinical_cases.py` | 88 | 22 clinical fixtures × 4 parametrized checks across 10 specialties (cardiac, neurological, respiratory, sepsis, GI, obstetric, endocrine, trauma, psychiatric, dermatological) |
+| `test_pdf_extraction.py` | 9 | `extract_text`: success, blank page skipping, no-text `ValueError` |
+| `test_terminology.py` | 12 | NLM ICD-10-CM lookup: success, 404, network error, malformed response |
+| `test_endpoints.py` | 18 | All FastAPI routes: text/PDF upload, status polling, result retrieval, error cases |
+| `test_worker_task.py` | 7 | Celery `process_case` task: text/PDF paths, retryable vs non-retryable failures, ICD-10 enrichment |
+| `test_clinical_cases.py` | 88 | 22 clinical fixtures x 4 parametrized checks across 10 specialties (cardiac, neurological, respiratory, sepsis, GI, obstetric, endocrine, trauma, psychiatric, dermatological) |
 
 ---
 
