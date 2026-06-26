@@ -36,6 +36,9 @@ RUN pip install --no-cache-dir uv && \
 # application code does not trigger a full reinstall of all packages.
 COPY . .
 
+RUN adduser --disabled-password --gecos "" appuser
+USER appuser
+
 # Default command: start the API server.
 # This is overridden by the worker service in docker-compose.yml and render.yaml.
 # 0.0.0.0 makes the server listen on all network interfaces inside the

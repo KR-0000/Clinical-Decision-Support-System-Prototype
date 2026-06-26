@@ -21,8 +21,12 @@ celery_app = Celery(
 # CERT_NONE skips certificate verification, acceptable for a portfolio prototype.
 # In production you would use ssl.CERT_REQUIRED with a proper CA bundle.
 import ssl as _ssl_module
+import certifi
 _redis_url = os.getenv("REDIS_URL", "")
-_ssl_config = {"ssl_cert_reqs": _ssl_module.CERT_NONE} if _redis_url.startswith("rediss://") else {}
+_ssl_config = {
+    "ssl_cert_reqs": _ssl_module.CERT_REQUIRED,
+    "ssl_ca_certs": certifi.where(),
+} if _redis_url.startswith("rediss://") else {}
 
 celery_app.conf.update(
     task_serializer="json",

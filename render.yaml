@@ -4,8 +4,9 @@
 # Docs: https://render.com/docs/blueprint-spec
 #
 # Services defined here:
-#   cds-api    - FastAPI web service (free tier)
-#   cds-worker - Celery worker deployed as a web service (free tier)
+#   cds-frontend - Static site (frontend HTML at ./frontend/)
+#   cds-api      - FastAPI web service (free tier)
+#   cds-worker   - Celery worker deployed as a web service (free tier)
 #
 # WHY cds-worker IS TYPE "web" AND NOT TYPE "worker":
 # Render's "background worker" service type is only available on paid plans.
@@ -22,6 +23,15 @@
 #   AI         - Groq (already set up)
 
 services:
+
+  # ── Frontend Static Site ──────────────────────────────────────────────────
+  - type: web
+    name: cds-frontend
+    runtime: static
+    staticPublishPath: ./frontend
+    buildCommand: ""
+    # NOTE: if you already have this static site configured via the Render dashboard,
+    # update its Publish Directory to "frontend" (was "app/frontend" before restructure).
 
   # ── API Service ───────────────────────────────────────────────────────────
   - type: web
@@ -43,6 +53,8 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://clinical-decision-support-system-1cqq.onrender.com
 
   # ── Worker Service ────────────────────────────────────────────────────────
   # Deployed as type "web" because Render's free plan does not support type "worker".

@@ -2,11 +2,20 @@ import logging
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from dotenv import load_dotenv
 
+from app.limiter import limiter
 from app.routers.jobs import router as jobs_router
 
 load_dotenv()
+
+# ALLOWED_ORIGINS is set in the Render environment to the exact frontend URL.
+# Locally, leave unset (defaults to "*") so file:// and localhost dev both work.
+# allow_credentials must be False when using "*" — the app uses no cookies or sessions.
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",")]
 
 # Set up logging before anything else.
 # INFO level means you will see info, warning, and error messages in the terminal.
@@ -28,14 +37,15 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# CORS middleware: required for the frontend HTML files to talk to this API
-# when opened directly in a browser (file:// protocol).
-# allow_origins=["*"] is safe for local development.
-# In production, restrict this to your actual deployed frontend domain.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS,
+    # Must be False when allow_origins contains "*" (CORS spec forbids both).
+    # This app has no cookies or session tokens, so credentials are never sent.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

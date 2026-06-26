@@ -2,9 +2,10 @@ import uuid
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.limiter import limiter
 from app.models.job import Job, JobStatus, JobCreateResponse, JobStatusResponse, JobResultResponse
 from app.services.database import get_db
 from app.services.storage import upload_file
@@ -15,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/upload", response_model=JobCreateResponse)
+@limiter.limit("10/minute")
 async def upload_case(
+    request: Request,
     case_text: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db)
@@ -52,6 +55,13 @@ async def upload_case(
 
         logger.info(f"Job {job_id}: PDF upload received — {file.filename}")
         file_bytes = await file.read()
+
+        MAX_PDF_BYTES = 10 * 1024 * 1024  # 10 MB
+        if len(file_bytes) > MAX_PDF_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail="File too large. Maximum size is 10 MB."
+            )
 
         try:
             file_ref = upload_file(file_bytes, file.filename, job_id)
