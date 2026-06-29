@@ -70,7 +70,7 @@ Healthcare systems in the US already handle care transitions at scale through EH
 | Message broker / result backend | Upstash Redis (TLS, `rediss://`) |
 | Database | Supabase Postgres via SQLAlchemy 2.0 |
 | File storage | Supabase Storage |
-| LLM | Groq (`llama-3.3-70b-versatile`) |
+| LLM | Groq (`openai/gpt-oss-120b`) |
 | PDF extraction | pdfplumber |
 | ICD-10 verification | NLM ICD-10-CM API (no key required) |
 | Rate limiting | slowapi (10 req/min on `/jobs/upload`) |

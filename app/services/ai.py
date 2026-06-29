@@ -13,7 +13,7 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 # temperature=0.1 means low randomness.
 # For clinical data extraction you want consistent, literal output
 # not creative interpretation. Lower temperature = more deterministic.
-MODEL = "llama-3.3-70b-versatile"
+MODEL = "openai/gpt-oss-120b"
 TEMPERATURE = 0.1
 
 # These are the top-level keys the model must return.
