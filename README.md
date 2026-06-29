@@ -134,7 +134,7 @@ Both the API and Worker run on Render's free plan, which spins down containers a
 **Before using the frontend, visit the worker URL first:**
 
 1. Open https://cds-worker.onrender.com/ in a new tab and wait for it to return `worker alive` (up to 60 seconds on a cold start).
-2. Then open the frontend and submit a case normally.
+2. Then open the frontend and submit a case normally here: https://clinical-decision-support-system-1cqq.onrender.com
 
 Skipping this step will cause the frontend to spin indefinitely after submission. The worker container is asleep and not consuming tasks from Redis, so submitted jobs never get picked up.
 
