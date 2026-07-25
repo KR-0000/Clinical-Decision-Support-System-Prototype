@@ -252,6 +252,7 @@ clinical-decision-support-system-prototype/
 ├── start_worker.sh              # Starts worker_health.py + Celery
 └── pyproject.toml               # uv-managed; dev deps in [dependency-groups].dev
 ```
+---
 
 ## Future Improvements
 
@@ -260,6 +261,12 @@ Potential next steps include:
 - Improving retrieval and validation methods for medical information
 - Adding additional safety checks and clinician feedback workflows
 - Expanding deployment and monitoring capabilities
+
+---
+
+## Contribution
+
+This project was independently designed and developed, including backend architecture, API development, AI integration, database design, testing, and deployment.
 
 ---
 
