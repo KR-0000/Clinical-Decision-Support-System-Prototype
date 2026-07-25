@@ -253,6 +253,14 @@ clinical-decision-support-system-prototype/
 └── pyproject.toml               # uv-managed; dev deps in [dependency-groups].dev
 ```
 
+## Future Improvements
+
+Potential next steps include:
+- Evaluating system performance with larger clinical datasets
+- Improving retrieval and validation methods for medical information
+- Adding additional safety checks and clinician feedback workflows
+- Expanding deployment and monitoring capabilities
+
 ---
 
 ## Disclaimer
