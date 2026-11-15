@@ -95,6 +95,19 @@ test('canceled request does not reach the network',async()=>{
   await assert.rejects(runtime.requestJSON('/health',{},controller.signal,100));assert.equal(requests,0);
 });
 
+test('browser-blocked startup stops with recovery guidance and never uploads',async()=>{
+  let posts=0;
+  const {runtime}=harness(async(url,options)=>{
+    if(options.method==='POST')posts++;
+    throw new TypeError('Failed to fetch');
+  });
+  await runtime.submitLive(form());
+  assert.equal(posts,0);
+  assert.equal(runtime.snapshot().liveBusy,false);
+  assert.match(runtime.snapshot().liveError.message,/ERR_BLOCKED_BY_CLIENT/);
+  runtime.cancelLive();
+});
+
 test('demo playback is isolated from live network calls',()=>{
   let requests=0;const {runtime}=harness(async()=>{requests++;return json({});});
   runtime.startTour();runtime.runTourStep(1);runtime.runTourStep(2);runtime.runTourStep(3);runtime.runTourStep(4);runtime.stopTour();

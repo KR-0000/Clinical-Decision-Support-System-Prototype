@@ -177,6 +177,7 @@ Observations: temperature 37.9°C, heart rate 102/min, blood pressure 116/72 mmH
   }
   async function wakeService(url,valid,elementId,deadline,run) {
     let attempts = 0;
+    let connectionFailures = 0;
     while(currentRun(run) && Date.now()<deadline) {
       attempts++;
       const status = document.getElementById(elementId);
@@ -186,6 +187,13 @@ Observations: temperature 37.9°C, heart rate 102/min, blood pressure 116/72 mmH
         if(valid(body)){const element=document.getElementById(elementId);if(element)element.textContent='Responding';return;}
       } catch(error) {
         if(!currentRun(run))throw error;
+        if(error.name === 'TypeError') connectionFailures++;
+        else connectionFailures = 0;
+        if(connectionFailures >= 2) {
+          const connectionError = new Error('Browser connection unavailable');
+          connectionError.code = 'BROWSER_CONNECTION';
+          throw connectionError;
+        }
         if(status) status.textContent = error.name === 'AbortError'
           ? 'Connection timed out. Retrying...'
           : 'Connection failed (' + error.message + '). Retrying...';
@@ -216,7 +224,8 @@ Observations: temperature 37.9°C, heart rate 102/min, blood pressure 116/72 mmH
     } catch(error) {
       if(!currentRun(run))return;
       liveController?.abort();setBusy(false);
-      if(phase==='startup')liveError={kind:'startup',message:'The analysis services did not start in time. Your case is still here; no case was submitted.'};
+      if(phase==='startup' && error.code==='BROWSER_CONNECTION') liveError={kind:'startup',message:'Your browser could not connect to the analysis services. If the Console shows ERR_BLOCKED_BY_CLIENT, allow this site in your ad blocker or privacy protection and turn off DevTools Network request blocking. You can also try a browser profile with extensions disabled. Then select Retry startup. Your case has not been submitted.'};
+      else if(phase==='startup')liveError={kind:'startup',message:'The analysis services did not start in time. Your case is still here; no case was submitted.'};
       else if(phase==='upload')liveError={kind:'uncertain',message:'Submission could not be confirmed. The request may have reached the service. It has not been sent again automatically.'};
       else liveError={kind:'status',message:'We could not retrieve the latest status. The existing case may still be processing.'};
       setScreen('failed');
