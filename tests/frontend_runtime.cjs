@@ -195,3 +195,16 @@ test('paused demo reconstructs typed introduction and exposes previous navigatio
     assert.doesNotMatch(shell,/Interactive demo/);
   }
 });
+
+test('verified badge links to NLM while ICD code remains plain text', async () => {
+  const {runtime,main}=harness(async(url,options)=>{
+    if(options.method==='POST')return json({job_id:'badge-test'});
+    if(url.includes('/jobs/result'))return json({status:'done',result:{patient_summary:'Test',urgency:'Non-urgent',possible_conditions:[{condition:'Test',icd10:'J18.9',likelihood:'Low',reasoning:'Test',icd10_verified:true}],red_flags:[],suggested_next_steps:[],missing_information:[],clinical_note:''}});
+    return json(url.includes(':8001')?{http_service:'awake'}:{status:'ok'});
+  });
+  await runtime.submitLive(form());
+  assert.match(main.innerHTML, /ICD-Code: J18.9<\/span>/);
+  assert.match(main.innerHTML, /verification-badge.*connect.medlineplus.gov/);
+  assert.doesNotMatch(main.innerHTML, /code code-link/);
+  runtime.cancelLive();
+});

@@ -131,11 +131,11 @@ main{max-width:1440px;padding:24px;margin:0 auto}.app-header{padding:14px 24px}.
 .example-buttons button { height:80px; min-height:80px; margin:0; scroll-snap-align:start; }
 .example-title { overflow:hidden; text-overflow:ellipsis; }
 .example-title > span { display:inline-block; min-width:100%; }
-.example-buttons button:hover .example-title > span { animation:read-example 7s 700ms 1 alternate both; }
+.example-buttons button:hover .example-title > span { animation:read-example 2.6s 250ms 1 alternate both; }
 @keyframes read-example { to { transform:translateX(var(--example-overflow,0px)); } }
 #demo-cursor { width:20px; height:26px; }
 .walkthrough-cta::after { animation:walkthrough-invitation 1200ms 1500ms 1 both; }
-.walkthrough-cta { animation:invite-attention 8s 1500ms infinite; }
+.walkthrough-cta { animation:invite-attention 8s 1500ms 3; }
 @keyframes invite-attention { 0%,24%,100%{box-shadow:0 5px 14px #00000026;transform:scale(1)} 8%,16%{box-shadow:0 8px 24px #00000040;transform:scale(1.055)} }
 #tour-exit.attention-exit { background:white;color:#17324d; animation:invite-attention 8s infinite; }
 .demo-typing { caret-color:#17324d; }
@@ -153,3 +153,9 @@ main{max-width:1440px;padding:24px;margin:0 auto}.app-header{padding:14px 24px}.
  .example-buttons button:hover .example-title > span { animation:none; }
  .example-buttons button:focus .example-title { white-space:normal; }
 }
+
+.walkthrough-seen .walkthrough-cta,.walkthrough-seen .walkthrough-cta::after{animation:none}
+.verification-badge{padding:2px 8px;background:#e4eee8;border-radius:5px;text-decoration:none;font-weight:600}.verification-badge:hover{text-decoration:underline}
+.time-skip{position:fixed;inset:0;z-index:1100;background:#17324de8;display:flex;align-items:center;justify-content:center;gap:28px;color:white;pointer-events:none}.time-skip[hidden]{display:none}.time-skip svg{width:160px;height:80px;animation:skip-forward 450ms ease-in-out infinite alternate}.skip-clock{width:58px;height:58px;border:3px solid white;border-radius:50%;position:relative}.skip-clock::after{content:'';position:absolute;left:25px;top:7px;width:2px;height:20px;background:white;transform-origin:bottom;animation:rotate 350ms linear infinite}
+@keyframes skip-forward{to{transform:translateX(16px)}}
+@media(prefers-reduced-motion:reduce){.time-skip svg,.skip-clock::after{animation:none}}
