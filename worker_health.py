@@ -18,6 +18,19 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 
 class HealthHandler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        origin = self.headers.get('Origin')
+        allowed = os.getenv('ALLOWED_ORIGINS', 'https://clinical-decision-support-system-1cqq.onrender.com,http://127.0.0.1:8000,http://localhost:8000').split(',')
+        if self.path != '/health' or origin not in [item.strip() for item in allowed]:
+            self.send_error(403)
+            return
+        self.send_response(204)
+        self.send_header('Access-Control-Allow-Origin', origin)
+        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'cache-control, pragma')
+        self.send_header('Vary', 'Origin')
+        self.end_headers()
+
     def do_GET(self):
         if self.path not in ('/', '/health'):
             self.send_error(404)

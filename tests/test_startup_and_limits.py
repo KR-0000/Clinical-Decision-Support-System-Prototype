@@ -16,6 +16,16 @@ def test_worker_http_health_is_readable_only_for_allowed_origin(monkeypatch):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
+        preflight = urllib.request.Request(
+            f'http://127.0.0.1:{server.server_port}/health', method='OPTIONS',
+            headers={'Origin': 'https://demo.example',
+                     'Access-Control-Request-Method': 'GET',
+                     'Access-Control-Request-Headers': 'cache-control,pragma'},
+        )
+        with urllib.request.urlopen(preflight, timeout=2) as response:
+            assert response.status == 204
+            assert response.headers['Access-Control-Allow-Origin'] == 'https://demo.example'
+            assert 'pragma' in response.headers['Access-Control-Allow-Headers']
         for origin, expected in [('https://demo.example', 'https://demo.example'), ('https://other.example', None)]:
             request = urllib.request.Request(f'http://127.0.0.1:{server.server_port}/health', headers={'Origin': origin})
             with urllib.request.urlopen(request, timeout=2) as response:

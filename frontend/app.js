@@ -169,7 +169,7 @@ Observations: temperature 37.9Â°C, heart rate 102/min, blood pressure 116/72 mmH
     const controller=new AbortController(), abort=()=>controller.abort();
     signal.addEventListener('abort',abort,{once:true});const timer=setTimeout(abort,timeout);
     try {
-      const response=await fetch(url,{...options,signal:controller.signal,credentials:'omit',cache:'no-store'});
+      const response=await fetch(url,{...options,signal:controller.signal,credentials:'omit',cache:'default'});
       if(!response.ok){const error=new Error('HTTP '+response.status);error.status=response.status;throw error;}
       if(!response.headers.get('content-type')?.includes('application/json'))throw new Error('Service is not ready');
       return await response.json();
@@ -180,11 +180,16 @@ Observations: temperature 37.9Â°C, heart rate 102/min, blood pressure 116/72 mmH
     while(currentRun(run) && Date.now()<deadline) {
       attempts++;
       const status = document.getElementById(elementId);
-      if(status) status.textContent = attempts === 1 ? 'Connecting…' : 'Still starting — retry ' + attempts;
+      if(status) status.textContent = attempts === 1 ? 'Connecting...' : 'Still starting - retry ' + attempts;
       try {
-        const body=await requestJSON(url,{},run.signal,Math.min(12000,deadline-Date.now()));
+        const body=await requestJSON(url,{},run.signal,Math.min(60000,deadline-Date.now()));
         if(valid(body)){const element=document.getElementById(elementId);if(element)element.textContent='Responding';return;}
-      } catch(error) {if(!currentRun(run))throw error;}
+      } catch(error) {
+        if(!currentRun(run))throw error;
+        if(status) status.textContent = error.name === 'AbortError'
+          ? 'Connection timed out. Retrying...'
+          : 'Connection failed (' + error.message + '). Retrying...';
+      }
       await sleep(Math.min(1500,Math.max(0,deadline-Date.now())),run.signal);
     }
     throw new Error('Startup timed out');
