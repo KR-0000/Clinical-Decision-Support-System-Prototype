@@ -94,12 +94,20 @@ def _validate_response(data: dict) -> None:
     Raises AIResponseValidationError with a specific message if anything
     is missing, so the error stored in the DB tells you exactly what went wrong.
     """
+    if not isinstance(data, dict):
+        raise AIResponseValidationError('AI response must be an object')
     missing_top = REQUIRED_FIELDS - set(data.keys())
     if missing_top:
         raise AIResponseValidationError(
             f"AI response missing required fields: {sorted(missing_top)}"
         )
 
+    for field in ('patient_summary', 'clinical_note'):
+        if not isinstance(data[field], str):
+            raise AIResponseValidationError(f'{field} must be a string')
+    for field in ('red_flags', 'suggested_next_steps', 'missing_information'):
+        if not isinstance(data[field], list) or any(not isinstance(item, str) for item in data[field]):
+            raise AIResponseValidationError(f'{field} must be a list of strings')
     if not isinstance(data["possible_conditions"], list):
         raise AIResponseValidationError(
             "possible_conditions must be a list"
@@ -115,6 +123,8 @@ def _validate_response(data: dict) -> None:
             raise AIResponseValidationError(
                 f"possible_conditions[{i}] missing fields: {sorted(missing_cond)}"
             )
+        if any(not isinstance(condition[field], str) for field in REQUIRED_CONDITION_FIELDS):
+            raise AIResponseValidationError(f'possible_conditions[{i}] fields must be strings')
 
     valid_likelihoods = {"High", "Moderate", "Low"}
     for i, condition in enumerate(data["possible_conditions"]):
@@ -151,7 +161,9 @@ def analyze_case(case_text: str) -> dict:
 
     The worker inspects the exception type to decide whether to retry or fail fast.
     """
-    truncated = case_text[:5000]
+    if not isinstance(case_text, str) or len(case_text) > 20000:
+        raise AIResponseValidationError('Case text must be a string of at most 20,000 characters')
+    truncated = case_text
     logger.info(f"Sending case to Groq ({len(truncated)} characters)")
 
     response = client.chat.completions.create(
@@ -176,7 +188,7 @@ def analyze_case(case_text: str) -> dict:
     try:
         result = json.loads(raw)
     except json.JSONDecodeError as e:
-        logger.error(f"JSON parse failed despite json_object mode. Raw: {raw[:400]}")
+        logger.error('Groq returned invalid JSON')
         raise ValueError(f"Unexpected JSON parse failure: {e}")
 
     # Validate structure — raises AIResponseValidationError if anything is wrong

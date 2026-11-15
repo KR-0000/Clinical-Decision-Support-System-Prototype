@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CDS — interactive design preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="preview-tools" aria-label="Design preview controls">
+    <p><strong>Interactive design preview</strong><span> Synthetic examples · No cases sent</span></p>
+    <div class="preview-options">
+      <label for="preview-state">Screen</label>
+      <select id="preview-state">
+        <optgroup label="Submit"><option value="text">Text entry</option><option value="pdf">PDF upload</option></optgroup>
+        <optgroup label="Progress"><option value="preparing">Preparing live demo</option><option value="queued">Queued</option><option value="processing">Processing</option></optgroup>
+        <optgroup label="Review"><option value="results">Results</option><option value="long">Long results</option><option value="empty">Empty results</option><option value="print">Print layout</option></optgroup>
+        <optgroup label="Recovery"><option value="connection">Connection interrupted</option><option value="failed">Analysis failed</option></optgroup>
+      </select>
+      <label class="header-toggle"><input id="navy-header" type="checkbox"> Navy header</label>
+    </div>
+  </div>
+  <header class="app-header">
+    <a class="brand" href="#" id="brand-link">Clinical Decision Support <span>Prototype</span></a>
+    <div class="header-actions"><button type="button" id="how-it-works">How it works</button><button type="button" id="new-case">New case</button></div>
+  </header>
+  <dialog id="welcome-dialog" aria-labelledby="welcome-title" aria-describedby="welcome-description">
+    <div class="welcome-top"><h2 id="welcome-title">See how a case becomes a structured review</h2><button type="button" id="close-welcome" aria-label="Close walkthrough invitation">Close</button></div>
+    <p id="welcome-description">Watch a clinical case move from input to structured review. Follow the cursor, or explore the application yourself.</p>
+    <div class="mini-demo" aria-label="Illustrated workflow: queued, analyzing, then a structured review">
+      <ol class="mini-timeline"><li data-mini-step="0">Queued</li><li data-mini-step="1">Analyzing</li><li data-mini-step="2">Review ready</li></ol>
+      <div class="mini-content" id="mini-content"></div>
+    </div>
+    <div class="mini-caption"><span>Illustrative preview · no analysis runs</span><button type="button" id="replay-mini" class="text-button">Replay preview</button></div>
+    <div class="welcome-actions"><button type="button" class="primary" id="start-walkthrough">Start walkthrough</button><button type="button" class="welcome-skip" id="skip-welcome">Explore on my own</button></div>
+  </dialog>
+  <div id="tour-chrome" hidden>
+    <div class="tour-top"><strong>Interactive demo</strong><span id="tour-step" role="status" aria-live="polite"></span><span class="tour-simulation">Simulated · no submission</span></div>
+    <div class="tour-bottom"><span id="tour-caption"></span><div class="tour-controls"><button id="tour-pause" type="button">Pause</button><button id="tour-next" type="button">Next step</button><button id="tour-exit" type="button">Exit demo</button></div></div>
+  </div>
+  <svg id="demo-cursor" viewBox="0 0 32 40" aria-hidden="true" hidden><path d="M3 2v29l8-7 6 13 6-3-6-12 11-1Z" fill="#fff" stroke="#17324d" stroke-width="2"/></svg>
+  <main id="main" tabindex="-1"></main>
+  <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
+  <footer class="app-footer"><span>For evaluation only. Not for direct patient care.</span><span>Fictional content · Simulated analysis</span></footer>
+</body>
+</html>

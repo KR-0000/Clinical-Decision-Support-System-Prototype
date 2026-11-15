@@ -161,7 +161,7 @@ def test_analyze_case_returns_all_required_keys():
     assert required.issubset(result.keys())
 
 
-def test_analyze_case_truncates_long_input_to_5000_chars():
+def test_analyze_case_preserves_full_input_within_limit():
     long_text = "x" * 10_000
     captured = []
 
@@ -173,8 +173,7 @@ def test_analyze_case_truncates_long_input_to_5000_chars():
     with patch("app.services.ai.client.chat.completions.create", side_effect=capture_call):
         analyze_case(long_text)
 
-    # The prompt is built from case_text[:5000]; verify the embedded text is capped
-    assert "x" * 5001 not in captured[0]
+    assert long_text in captured[0]
 
 
 # ── analyze_case: error handling ─────────────────────────────────────────────

@@ -7,7 +7,8 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-engine = create_engine(DATABASE_URL)
+# Replace connections that Supabase closed while the API was idle.
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 # SessionLocal is a factory that creates new database sessions.
 # autocommit=False means changes are not saved until you explicitly call db.commit().

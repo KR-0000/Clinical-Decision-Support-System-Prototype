@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from dotenv import load_dotenv
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.limiter import limiter
 from app.routers.jobs import router as jobs_router
@@ -39,6 +41,18 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+
+
+@app.exception_handler(SQLAlchemyError)
+async def database_error_handler(request, exc):
+    # A handled response passes through CORS, so browsers can read the error.
+    # Never expose connection strings or SQL parameters (which may contain cases).
+    logging.getLogger(__name__).error("Database request failed (%s)", type(exc).__name__)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "The database is unavailable. Please try again later. If this persists, check the Supabase project and API database configuration."},
+    )
+
 
 app.add_middleware(
     CORSMiddleware,

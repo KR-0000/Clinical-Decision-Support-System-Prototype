@@ -1,7 +1,7 @@
-# Use Python 3.11 slim as base.
+# Match pyproject.toml, uv.lock, and .python-version.
 # slim is a stripped-down Debian image, smaller than the full image,
 # but still has apt-get for installing system dependencies.
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Install system dependencies.
 # libpq-dev is needed by psycopg2 to connect to Postgres.
@@ -28,7 +28,7 @@ COPY pyproject.toml uv.lock* ./
 # uv export reads pyproject.toml + uv.lock and writes exact pinned versions,
 # so the container gets the same dependency versions you tested locally.
 RUN pip install --no-cache-dir uv && \
-    uv export --no-hashes --format requirements-txt > requirements.txt && \
+    uv export --frozen --no-dev --no-hashes --format requirements-txt > requirements.txt && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code into the container.
