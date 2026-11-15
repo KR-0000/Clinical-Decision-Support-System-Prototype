@@ -8,7 +8,7 @@ const source = fs.readFileSync('frontend/app.js', 'utf8');
 const instrumented = source.slice(0, source.indexOf('  const initialJob =')) + `
   globalThis.runtime = {submitLive, requestJSON, wakeService, beginLive, cancelLive,
     snapshot:()=>({activeJobId,liveResult,liveError,liveBusy,current}),
-    startTour, stopTour, runTourStep, pauseTour, examples, examplePicker};
+    startTour, stopTour, runTourStep, pauseTour, examples, examplePicker, typeDemoIntroduction};
 })();`;
 function harness(fetch) {
   const elements = new Map();
@@ -175,5 +175,23 @@ test('both application pages expose the direct walkthrough action',()=>{
     assert.match(shell,/id="header-walkthrough"/);
     assert.ok(shell.indexOf('id="header-walkthrough"')<shell.indexOf('id="how-it-works"'));
     assert.match(shell,/id="tour-annotation"/);
+  }
+});
+
+
+test('paused demo reconstructs typed introduction and exposes previous navigation',()=>{
+  let requests=0;
+  const {runtime,element}=harness(async()=>{requests++;return json({});});
+  runtime.startTour();
+  assert.match(element('case-text').value,/62-year-old man/);
+  runtime.runTourStep(1);
+  runtime.runTourStep(0);
+  assert.match(element('case-text').value,/fever and productive cough/);
+  runtime.stopTour();
+  assert.equal(requests,0);
+  for(const page of ['index.html','result.html']) {
+    const shell=fs.readFileSync('frontend/'+page,'utf8');
+    assert.match(shell,/id="tour-previous"/);
+    assert.doesNotMatch(shell,/Interactive demo/);
   }
 });

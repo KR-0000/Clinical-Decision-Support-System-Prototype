@@ -27,7 +27,7 @@ At assessment: temperature 38.4°C, heart rate 108/min, blood pressure 132/78 mm
   ];
   function examplePicker() {
     return ['Well-documented cases', 'Incomplete or off-topic input'].map(group =>
-      `<section class="example-group"><h3>${group}</h3><div class="example-buttons">${examples.map((item, index) => item.group === group ? `<button type="button" data-example="${index}" title="${escape(item.label)}"><span class="example-title">${escape(item.label)}</span><span class="example-detail">${escape(item.detail)}</span></button>` : '').join('')}</div></section>`
+      `<section class="example-group"><h3>${group}</h3><div class="example-buttons" tabindex="0" role="region" aria-label="${group} examples">${examples.map((item, index) => item.group === group ? `<button type="button" data-example="${index}" title="${escape(item.label)}"><span class="example-title"><span>${escape(item.label)}</span></span><span class="example-detail">${escape(item.detail)}</span></button>` : '').join('')}</div></section>`
     ).join('');
   }
   const medlineLink = code => 'https://connect.medlineplus.gov/application?mainSearchCriteria.v.cs=2.16.840.1.113883.6.90&mainSearchCriteria.v.c=' + encodeURIComponent(code) + '&informationRecipient.languageCode.c=en';
@@ -63,6 +63,16 @@ At assessment: temperature 38.4°C, heart rate 108/min, blood pressure 132/78 mm
       <p class="inline-notice">${walkthrough ? 'Simulated walkthrough. No case is sent.' : 'Use de-identified information only. Submitting sends the case for AI analysis; review every result before use.'}</p></section>
       <aside class="guidance"><h2>What to include</h2><section><h3>Presenting concern</h3><ul><li>Main symptoms and severity</li><li>Onset, duration and progression</li><li>Relevant symptoms that are absent</li></ul></section><section><h3>Observations</h3><ul><li>Vital signs</li><li>Examination findings</li><li>Available test results</li></ul></section><section><h3>Patient context</h3><ul><li>Age and relevant medical history</li><li>Current medications and allergies</li><li>Relevant exposures and risk factors</li></ul></section></aside></div>`;
     main.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => { mode = button.dataset.mode; setScreen(mode); }));
+    main.querySelectorAll('[data-example]').forEach(button => {
+      const revealTitle = () => {
+        const title = button.querySelector('.example-title');
+        const text = title.querySelector('span');
+        const overflow = Math.max(0, text.scrollWidth - title.clientWidth);
+        button.style.setProperty('--example-overflow', '-' + overflow + 'px');
+      };
+      button.addEventListener('pointerenter', revealTitle);
+      button.addEventListener('focus', revealTitle);
+    });
     main.querySelectorAll('[data-example]').forEach(button => button.addEventListener('click', () => {
       draft = examples[Number(button.dataset.example)].text; mode = 'text'; setScreen('text');
       document.getElementById('case-text').focus(); say(button.textContent + ' example loaded. Review or edit the text, then preview analysis.');
@@ -217,7 +227,8 @@ At assessment: temperature 38.4°C, heart rate 108/min, blood pressure 132/78 mm
         wakeService(WORKER+'/health',body=>body?.http_service==='awake','worker-startup',deadline,run)
       ]);
       if(!currentRun(run))return;
-      phase='upload';document.getElementById('startup-message').textContent='Services are responding. Submitting the case once…';
+      phase='upload';document.getElementById('startup-message').textContent='Submitting your case...';
+      main.querySelector('.preparing')?.classList.add('is-submitting');
       document.getElementById('cancel-startup').disabled=true;
       const created=await requestJSON(API+'/jobs/upload',{method:'POST',body:formData},run.signal,30000);
       if(!currentRun(run))return;
@@ -266,8 +277,28 @@ At assessment: temperature 38.4°C, heart rate 108/min, blood pressure 132/78 mm
     cancelLive();liveError={kind:'status',message:'Status checking is paused. This does not cancel analysis on the server.'};setScreen('failed');
   }
   function renderPreparing() {
-    main.innerHTML=`<section class="state-page preparing"><h1>Preparing analysis</h1><p id="startup-message" role="status">Starting the analysis services. Cold starts can take up to three minutes. Connection checks retry automatically.</p><dl class="service-status"><dt>Analysis API</dt><dd id="api-startup">Waiting for a response</dd><dt>Background worker</dt><dd id="worker-startup">Waiting for a response</dd></dl><p>Your case will be submitted once both web services respond. Processing begins when the worker picks up the queued case.</p><details><summary>Taking longer than expected?</summary><p>You can open the worker page while it starts. Its response confirms the web process is awake; it does not confirm analysis has begun.</p><a href="${WORKER}/" target="_blank" rel="noopener noreferrer">Open worker page (new tab)</a></details><div class="state-actions"><button type="button" id="cancel-startup">Cancel startup</button></div></section>`;
-    document.getElementById('cancel-startup').addEventListener('click',()=>{cancelLive();setScreen(mode);});
+    main.innerHTML = `<section class="state-page preparing" aria-busy="true">
+      <div class="startup-clock" aria-label="Elapsed startup time"><span id="startup-elapsed">00:00</span></div>
+      <h1>Preparing analysis<span class="activity-dots" aria-hidden="true"></span></h1>
+      <p id="startup-message" role="status">Starting the analysis services. This can take up to three minutes after inactivity.</p>
+      <dl class="service-status"><dt>Connection</dt><dd id="api-startup">Connecting...</dd><dt>Analysis service</dt><dd id="worker-startup">Connecting...</dd></dl>
+      <details><summary>Taking longer than expected?</summary><p>The analysis service may be starting after inactivity. You can open its status page while waiting.</p><a href="${WORKER}/" target="_blank" rel="noopener noreferrer">Open service status (new tab)</a></details>
+      <div class="state-actions"><button type="button" id="cancel-startup">Cancel startup</button></div>
+    </section>`;
+    const update = () => {
+      const elapsed = Math.floor((Date.now() - liveStartedAt) / 1000);
+      const clock = document.getElementById('startup-elapsed');
+      if(clock) clock.textContent = String(Math.floor(elapsed / 60)).padStart(2, '0') + ':' + String(elapsed % 60).padStart(2, '0');
+      for(const id of ['api-startup', 'worker-startup']) {
+        const status = document.getElementById(id);
+        if(status && status.textContent !== 'Responding') {
+          status.textContent = status.textContent.replace(/\.+$/, '') + '.'.repeat(elapsed % 3 + 1);
+        }
+      }
+    };
+    update();
+    timers.push(setInterval(update, 1000));
+    document.getElementById('cancel-startup').addEventListener('click', () => { cancelLive(); setScreen(mode); });
   }
   function renderLiveProgress(state) {
     const processing=state==='processing';
@@ -306,7 +337,7 @@ At assessment: temperature 38.4°C, heart rate 108/min, blood pressure 132/78 mm
   // The player owns its timers separately from the simulated analysis UI.
   const tourChrome = document.getElementById('tour-chrome');
   const demoCursor = document.getElementById('demo-cursor');
-  const tourTitles = ['Choose a case', 'Read the clinical summary', 'Submit for analysis', 'Analysis in progress', 'Notice urgency', 'Compare diagnoses', 'Review next steps', 'Walkthrough complete'];
+  const tourTitles = ['Type a clinical summary', 'Complete the clinical summary', 'Submit for analysis', 'Analysis in progress', 'Notice urgency', 'Compare diagnoses', 'Review next steps', 'Walkthrough complete'];
   let tourTasks = [], tourAnimations = [], cursorPosition = {x:80,y:160};
   let annotationTarget = null;
   function positionAnnotation() {
@@ -319,9 +350,10 @@ At assessment: temperature 38.4°C, heart rate 108/min, blood pressure 132/78 mm
     const height = annotation.getBoundingClientRect().height;
     const upperLimit = innerWidth <= 760 ? 130 : 90;
     const lowerLimit = innerHeight - (innerWidth <= 760 ? 112 : 88);
-    const fitsRight = target.right + width + 24 < innerWidth;
-    const left = fitsRight ? target.right + 14 : Math.max(20, Math.min(innerWidth - width - 20, target.left));
-    const preferredTop = fitsRight ? target.top : target.bottom + 14;
+    const isExit = annotationTarget.id === 'tour-exit';
+    const fitsRight = !isExit && target.right + width + 24 < innerWidth;
+    const left = fitsRight ? target.right + 14 : Math.max(20, Math.min(innerWidth - width - 20, isExit ? target.left + target.width / 2 - width / 2 : target.left));
+    const preferredTop = isExit ? target.top - height - 20 : (fitsRight ? target.top : target.bottom + 14);
     const top = Math.max(upperLimit, Math.min(lowerLimit - height, preferredTop));
     annotation.style.left = left + 'px';
     annotation.style.top = top + 'px';
@@ -336,6 +368,7 @@ At assessment: temperature 38.4°C, heart rate 108/min, blood pressure 132/78 mm
     tourTasks.forEach(task=>clearTimeout(task.id)); tourTasks=[];
     tourAnimations.forEach(animation=>animation.cancel()); tourAnimations=[];
     document.querySelectorAll('.tour-target').forEach(el=>el.classList.remove('tour-target'));
+    document.getElementById('tour-exit').classList.remove('attention-exit');
   }
   function later(fn,delay) {
     if(!tour) return;
@@ -361,7 +394,7 @@ At assessment: temperature 38.4°C, heart rate 108/min, blood pressure 132/78 mm
     document.getElementById('tour-pause').textContent='Pause'; document.body.classList.remove('tour-paused');
   }
   function focusTourTarget(selector,click=false) {
-    const element=main.querySelector(selector); if(!element) return;
+    const element=document.querySelector(selector); if(!element) return;
     document.querySelectorAll('.tour-target').forEach(el=>el.classList.remove('tour-target'));
     element.classList.add('tour-target');
     annotationTarget = element;
@@ -370,18 +403,43 @@ At assessment: temperature 38.4°C, heart rate 108/min, blood pressure 132/78 mm
     const next={x:Math.min(innerWidth-44,Math.max(18,rect.left+rect.width*.65)),y:Math.min(innerHeight-100,Math.max(100,rect.top+Math.min(rect.height/2,34)))};
     if(!reducedMotion()) {
       demoCursor.removeAttribute('hidden');
-      const animation=demoCursor.animate([{transform:`translate(${cursorPosition.x}px,${cursorPosition.y}px)`},{transform:`translate(${next.x}px,${next.y}px)`}],{duration:650,easing:'cubic-bezier(.16,1,.3,1)',fill:'forwards'});
+      const animation=demoCursor.animate([{transform:`translate(${cursorPosition.x}px,${cursorPosition.y}px)`},{transform:`translate(${next.x}px,${next.y}px)`}],{duration:1300,easing:'cubic-bezier(.45,0,.2,1)',fill:'forwards'});
       tourAnimations.push(animation); cursorPosition=next;
       if(click) later(()=>{
         const pulse=element.animate([{outlineOffset:'3px',outlineColor:'#235c91'},{outlineOffset:'9px',outlineColor:'transparent'}],{duration:450});
         tourAnimations.push(pulse);
-      },650);
+      },1300);
     }
   }
   function tourScroll(selector) {
-    const target=main.querySelector(selector); if(!target) return;
-    const offset=innerWidth<=760?140:95;
-    window.scrollTo({top:Math.max(0,scrollY+target.getBoundingClientRect().top-offset),behavior:reducedMotion()?'instant':'smooth'});
+    const target = document.querySelector(selector);
+    if (!target) return;
+    const offset = innerWidth <= 760 ? 145 : 105;
+    const start = scrollY;
+    const destination = Math.max(0, start + target.getBoundingClientRect().top - offset);
+    if (reducedMotion()) { window.scrollTo({top:destination,behavior:'instant'}); return; }
+    for (let frame = 1; frame <= 30; frame++) {
+      later(() => {
+        const fraction = frame / 30;
+        const eased = fraction * fraction * (3 - 2 * fraction);
+        window.scrollTo({top:start + (destination - start) * eased,behavior:'instant'});
+      }, frame * 30);
+    }
+  }
+  function typeDemoIntroduction() {
+    const input = document.getElementById('case-text');
+    const introduction = '62-year-old man with four days of fever and productive cough, now breathless at rest.';
+    if (reducedMotion() || tour.paused) { input.value = introduction; draft = introduction; document.getElementById('text-count').textContent = draft.length + ' / 20,000'; return; }
+    input.classList.add('demo-typing');
+    input.focus({preventScroll:true});
+    for (let count = 1; count <= introduction.length; count++) {
+      later(() => {
+        draft = introduction.slice(0, count);
+        input.value = draft;
+        document.getElementById('text-count').textContent = draft.length + ' / 20,000';
+        if (count === introduction.length) input.classList.remove('demo-typing');
+      }, 1800 + count * 65);
+    }
   }
   function setTourScreen(state) {setScreen(state,{focus:false,preserveDemo:true});}
   function startTour() {
@@ -405,10 +463,10 @@ At assessment: temperature 38.4°C, heart rate 108/min, blood pressure 132/78 mm
     clearTourWork(); tour.step=index; walkthrough=true; autoDemo=false;
     document.getElementById('tour-step').textContent=`${index+1} / ${tourTitles.length} · ${tourTitles[index]}`;
     document.getElementById('tour-caption').textContent=[
-      'The cursor selects a ready-to-use clinical case.',
-      'Review the symptoms, observations, history and medications before submitting.',
+      'Type the patient’s symptoms, observations and relevant history here. You can also upload a clinical PDF.',
+      'The rest of this example has been filled in to save time. Ready-made cases above are another way to explore.',
       'The case is submitted once and joins the analysis queue.',
-      'The worker organizes the case into a structured review.',
+      'Reviewing the case.',
       'Urgency and red flags are separate from diagnosis likelihood.',
       'Compare the possibilities and inspect the linked ICD-10 codes.',
       'Review suggested next steps and the information still needed.',
@@ -417,35 +475,41 @@ At assessment: temperature 38.4°C, heart rate 108/min, blood pressure 132/78 mm
     document.getElementById('tour-next').textContent=index===7?'Replay':'Next step';
     document.getElementById('tour-pause').hidden=index===7;
     document.getElementById('tour-pause').textContent=tour.paused?'Resume':'Pause';
-    const wait=[2200,6500,3600,3200,4200,5000,5000,0][index];
+    const wait=[11000,10000,7000,4500,4200,5000,5000,0][index];
     if(index===0) {
       draft=''; mode='text'; setTourScreen('text'); window.scrollTo({top:0,behavior:'instant'});
-      focusTourTarget('[data-example="1"]',true);
+      tourScroll('#case-text');
+      later(()=>focusTourTarget('#case-text'),1000);
+      typeDemoIntroduction();
     } else if(index===1) {
       draft=sample; mode='text'; setTourScreen('text'); tourScroll('#case-text');
-      later(()=>focusTourTarget('#case-text'),450);
-      later(()=>{const input=document.getElementById('case-text'); if(input) input.scrollTop=input.scrollHeight;},3500);
+      later(()=>focusTourTarget('#case-text'),1000);
+      document.getElementById('case-text').scrollTop=0;
     } else if(index===2) {
       draft=sample; mode='text'; setTourScreen('text'); tourScroll('.form-actions');
       if(tour.paused) {setTourScreen('queued');window.scrollTo({top:0,behavior:'instant'});focusTourTarget('.state-page');}
-      else later(()=>focusTourTarget('button[type="submit"]',true),450);
-      if(!tour.paused) later(()=>{document.getElementById('case-form')?.requestSubmit(); window.scrollTo({top:0,behavior:'instant'});demoCursor.setAttribute('hidden','');focusTourTarget('.state-page');},1450);
+      else later(()=>focusTourTarget('button[type="submit"]',true),1000);
+      if(!tour.paused) later(()=>{document.getElementById('case-form')?.requestSubmit(); window.scrollTo({top:0,behavior:'instant'});demoCursor.setAttribute('hidden','');focusTourTarget('.state-page');},3200);
     } else if(index===3) {
       setTourScreen('processing'); window.scrollTo({top:0,behavior:'instant'}); focusTourTarget('.stage-content'); demoCursor.setAttribute('hidden','');
     } else {
       setTourScreen('results');
-      const selector=index===4?'.urgency-banner':index===5?'.differential':index===6?'.next-section':'.page-head';
-      tourScroll(selector); later(()=>focusTourTarget(selector),450);
-      if(index===7) {demoCursor.setAttribute('hidden','');pauseTour();}
+      const selector=index===4?'.urgency-banner':index===5?'.differential':index===6?'.next-section':'#tour-exit';
+      if(index!==7) tourScroll(selector);
+      later(()=>focusTourTarget(selector),1000);
+      if(index===7) {demoCursor.setAttribute('hidden','');pauseTour();document.getElementById('tour-exit').classList.add('attention-exit');}
     }
-    const annotationSelectors = ['[data-example="1"]', '#case-text', tour.paused ? '.state-page' : '.form-actions', '.stage-content', '.urgency-banner', '.differential', '.next-section', '.page-head'];
-    annotationTarget = main.querySelector(annotationSelectors[index]);
+    const annotationSelectors = ['#case-text', '#case-text', tour.paused ? '.state-page' : '.form-actions', '.stage-content', '.urgency-banner', '.differential', '.next-section', '#tour-exit'];
+    annotationTarget = document.querySelector(annotationSelectors[index]);
     positionAnnotation();
+    if(index===3) {annotationTarget=null;document.getElementById('tour-annotation').hidden=true;}
+    document.getElementById('tour-previous').disabled=index===0;
     if(wait) later(()=>runTourStep(index+1),wait);
     say(`Walkthrough step ${index+1}: ${tourTitles[index]}`);
   }
   document.getElementById('tour-pause').addEventListener('click',()=>tour?.paused?resumeTour():pauseTour());
   document.getElementById('tour-next').addEventListener('click',()=>{if(!tour)return;if(tour.step===7){tour.paused=reducedMotion();document.body.classList.toggle('tour-paused',tour.paused);runTourStep(0);}else runTourStep(tour.step+1);});
+  document.getElementById('tour-previous').addEventListener('click',()=>{if(tour && tour.step>0)runTourStep(tour.step-1);});
   document.getElementById('tour-exit').addEventListener('click',()=>stopTour());
   // Visitors can pause by interacting; real clicks never trigger a second analysis.
   main.addEventListener('click',event=>{if(tour && event.isTrusted){event.preventDefault();event.stopImmediatePropagation();pauseTour();}},true);
