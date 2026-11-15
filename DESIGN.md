@@ -117,6 +117,7 @@ typography:
   supporting-28px:
     fontSize: "28px"
 rounded:
+  annotation: "8px"
   control: "5px"
   dialog: "12px"
 spacing:
@@ -156,6 +157,8 @@ Controls have small radii and clear borders. Dialogs use a 12px radius. Icons ar
 Primary actions use filled blue buttons; secondary actions use outlined buttons. Code links are visibly underlined and open related NLM MedlinePlus information. The urgency banner is distinct from diagnosis likelihood. Progress uses submitted, queued, analyzing and ready stages without invented percentages. Only active clock/gear symbols animate.
 
 The invitation grows from How it works into a centered dialog with Start walkthrough and Explore on my own. A framed demo begins with input, then follows submission and results using a visible cursor. Pause, next and exit remain reachable. Exit restores the previous draft. Reduced-motion visitors receive manual progression without sweeping motion.
+
+The entry page groups short patient-led example buttons into well-documented cases and incomplete or off-topic input. Titles truncate visually while retaining their full accessible names. Grouping uses space rather than decorative dividers. A prominent Start walkthrough action appears before How it works and uses one finite attention animation after 1.5 seconds. The automatic invitation waits 2.6 seconds and expands over 700 milliseconds. Tour explanations appear beside highlighted targets with directional arrows, following the guided-tour popover pattern documented by Driver.js.
 
 ## Do's and Don'ts
 

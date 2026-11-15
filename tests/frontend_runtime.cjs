@@ -8,17 +8,17 @@ const source = fs.readFileSync('frontend/app.js', 'utf8');
 const instrumented = source.slice(0, source.indexOf('  const initialJob =')) + `
   globalThis.runtime = {submitLive, requestJSON, wakeService, beginLive, cancelLive,
     snapshot:()=>({activeJobId,liveResult,liveError,liveBusy,current}),
-    startTour, stopTour, runTourStep, pauseTour};
+    startTour, stopTour, runTourStep, pauseTour, examples, examplePicker};
 })();`;
 function harness(fetch) {
   const elements = new Map();
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
-      id, innerHTML:'', textContent:'', value:'', disabled:false, hidden:false,
+      id, innerHTML:'', textContent:'', value:'', disabled:false, hidden:false, style:{setProperty(){},},dataset:{},
       classList:{add(){},remove(){},toggle(){}},
       addEventListener(){},removeEventListener(){},focus(){},setAttribute(){},removeAttribute(){},
       querySelectorAll(){return [];},querySelector(){return element('queried');},
-      prepend(){},getBoundingClientRect(){return {left:0,top:0,width:100,height:40};},
+      prepend(){},getBoundingClientRect(){return {left:0,top:0,right:100,bottom:40,width:100,height:40};},
       animate(){return {cancel(){},pause(){},play(){},playState:'finished'};},
       closest(){return null;}
     });
@@ -34,7 +34,7 @@ function harness(fetch) {
     location:{hostname:'localhost',href:'http://localhost:8767/index.html',search:''},
     history:{replaceState(){}},navigator:{},matchMedia:()=>({matches:true})});
   vm.runInContext(instrumented,context);
-  return {runtime:context.runtime,main};
+  return {runtime:context.runtime,main,element};
 }
 const json=body=>({ok:true,status:200,headers:{get:()=> 'application/json'},json:async()=>body});
 const form=()=>{const data=new FormData();data.append('case_text','A synthetic clinical case with sufficient detail.');return data;};
@@ -130,4 +130,50 @@ test('model strings are escaped and truthy verification strings are not trusted'
 test('opaque responses are rejected',async()=>{
   const {runtime}=harness(async()=>({ok:false,status:0,type:'opaque'}));
   await assert.rejects(runtime.requestJSON('/health',{},new AbortController().signal,100));
+});
+
+test('example picker groups concise cases and edge cases without sending requests',()=>{
+  let requests=0;
+  const {runtime}=harness(async()=>{requests++;return json({});});
+  assert.equal(runtime.examples.length,8);
+  const documented=runtime.examples.filter(item=>item.group==='Well-documented cases');
+  assert.equal(documented.length,5);
+  for(const item of documented) {
+    assert.ok(item.text.split(/\s+/).length<=75);
+    assert.match(item.label,/Patient/);
+  }
+  assert.match(runtime.examplePicker(),/Incomplete or off-topic input/);
+  assert.equal(requests,0);
+});
+
+test('off-topic result does not fabricate urgency or diagnoses',async()=>{
+  const {runtime,main}=harness(async(url,options)=>{
+    if(options.method==='POST')return json({job_id:'off-topic-case'});
+    if(url.includes('/jobs/result'))return json({status:'done',result:{input_status:'off_topic',clinical_note:'Please enter a clinical case.'}});
+    return json(url.includes(':8001')?{http_service:'awake'}:{status:'ok'});
+  });
+  await runtime.submitLive(form());
+  assert.match(main.innerHTML,/outside clinical scope/);
+  assert.doesNotMatch(main.innerHTML,/urgency-banner|Differential diagnosis/);
+  runtime.cancelLive();
+});
+
+test('walkthrough annotations are available while paused and cleared on exit',()=>{
+  const {runtime,element}=harness(async()=>{throw new Error('Unexpected request');});
+  runtime.startTour();
+  runtime.pauseTour();
+  runtime.runTourStep(1);
+  assert.equal(element('tour-annotation').hidden,false);
+  runtime.stopTour();
+  assert.equal(element('tour-annotation').hidden,true);
+  assert.equal(element('tour-chrome').hidden,true);
+});
+
+test('both application pages expose the direct walkthrough action',()=>{
+  for(const page of ['index.html','result.html']) {
+    const shell=fs.readFileSync('frontend/'+page,'utf8');
+    assert.match(shell,/id="header-walkthrough"/);
+    assert.ok(shell.indexOf('id="header-walkthrough"')<shell.indexOf('id="how-it-works"'));
+    assert.match(shell,/id="tour-annotation"/);
+  }
 });

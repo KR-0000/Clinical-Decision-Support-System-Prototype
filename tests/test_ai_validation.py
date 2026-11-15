@@ -13,6 +13,19 @@ from unittest.mock import patch, MagicMock
 from app.services.ai import analyze_case, _validate_response, AIResponseValidationError
 
 
+def test_off_topic_response_cannot_include_diagnoses():
+    response = copy.deepcopy(VALID_RESPONSE)
+    response['input_status'] = 'off_topic'
+    with pytest.raises(AIResponseValidationError, match='Off-topic'):
+        _validate_response(response)
+
+
+def test_off_topic_response_accepts_empty_assessment():
+    response = copy.deepcopy(VALID_RESPONSE)
+    response.update(input_status='off_topic', possible_conditions=[], red_flags=[], suggested_next_steps=[])
+    _validate_response(response)
+
+
 # ── Shared valid response fixture ─────────────────────────────────────────────
 
 VALID_RESPONSE = {
