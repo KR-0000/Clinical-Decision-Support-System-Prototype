@@ -4,6 +4,8 @@ from typing import Optional
 
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from kombu.exceptions import OperationalError as BrokerError
+from redis.exceptions import RedisError
 
 from app.limiter import limiter
 from app.models.job import Job, JobStatus, JobCreateResponse, JobStatusResponse, JobResultResponse
@@ -13,6 +15,20 @@ from app.workers.tasks import process_case
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 logger = logging.getLogger(__name__)
+
+
+def _queue_case(db: Session, job: Job, **kwargs):
+    try:
+        process_case.delay(job_id=job.job_id, **kwargs)
+    except (BrokerError, RedisError) as exc:
+        logger.error("Task queue unavailable (%s)", type(exc).__name__)
+        job.status = JobStatus.failed
+        job.error_message = "Analysis queue unavailable; the task could not be confirmed as queued."
+        db.commit()
+        raise HTTPException(
+            status_code=503,
+            detail="The analysis queue is unavailable. Please try again later. If this persists, check Upstash Redis and the API/worker REDIS_URL settings.",
+        ) from exc
 
 
 @router.post("/upload", response_model=JobCreateResponse)
@@ -54,9 +70,8 @@ async def upload_case(
             )
 
         logger.info(f"Job {job_id}: PDF upload received — {file.filename}")
-        file_bytes = await file.read()
-
         MAX_PDF_BYTES = 10 * 1024 * 1024  # 10 MB
+        file_bytes = await file.read(MAX_PDF_BYTES + 1)
         if len(file_bytes) > MAX_PDF_BYTES:
             raise HTTPException(
                 status_code=413,
@@ -77,10 +92,12 @@ async def upload_case(
 
         # Queue the task — .delay() posts to Redis and returns immediately
         # The worker picks this up asynchronously
-        process_case.delay(job_id=job_id, input_type="pdf", file_ref=file_ref)
+        _queue_case(db, job, input_type="pdf", file_ref=file_ref)
 
     # --- Handle text input ---
     else:
+        if len(case_text) > 20000:
+            raise HTTPException(status_code=413, detail='Case description exceeds 20,000 characters. Shorten it before submitting.')
         if len(case_text.strip()) < 20:
             raise HTTPException(
                 status_code=400,
@@ -93,7 +110,7 @@ async def upload_case(
         db.add(job)
         db.commit()
 
-        process_case.delay(job_id=job_id, input_type="text", case_text=case_text)
+        _queue_case(db, job, input_type="text", case_text=case_text)
 
     logger.info(f"Job {job_id}: queued successfully")
     db.refresh(job)

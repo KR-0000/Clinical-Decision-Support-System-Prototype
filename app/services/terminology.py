@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 NLM_ICD10_URL = "https://clinicaltables.nlm.nih.gov/api/icd10cm/v3/search"
 
 
-def verify_icd10(condition_name: str) -> dict:
+def verify_icd10(condition_name: str, expected_code: str | None = None) -> dict:
     """
-    Look up the correct ICD-10-CM code for a condition name using the NLM API.
+    Look up terminology using NLM; expected_code requires an exact code match.
 
     Takes the condition name as free text (e.g. "Subarachnoid Hemorrhage"),
     searches the NLM ICD-10-CM database, and returns the top match.
@@ -31,8 +31,8 @@ def verify_icd10(condition_name: str) -> dict:
     """
     try:
         params = urllib.parse.urlencode({
-            "terms": condition_name,
-            "maxList": 1,          # only need the top result
+            "terms": expected_code or condition_name,
+            "maxList": 20 if expected_code else 1,
             "sf": "code,name",     # search fields: code and name
             "df": "code,name",     # return fields: code and name
         })
@@ -58,6 +58,10 @@ def verify_icd10(condition_name: str) -> dict:
             logger.warning(f"NLM found no ICD-10 match for '{condition_name}'")
             return {"verified": False}
 
+        if expected_code:
+            results = [row for row in results if isinstance(row, list) and len(row) >= 2 and row[0].upper() == expected_code.upper()]
+            if not results:
+                return {"verified": False}
         top_result = results[0]
         verified_code = top_result[0]
         verified_description = top_result[1]
@@ -84,8 +88,8 @@ def enrich_conditions_with_verified_icd10(conditions: list) -> list:
     condition with a verified ICD-10 code from NLM.
 
     For each condition:
-    - Calls verify_icd10() with the condition name
-    - If verified: replaces icd10 with the NLM code, adds icd10_description
+    - Calls verify_icd10() with the proposed code for exact matching
+    - If verified: retains the matched code and adds icd10_description
       and icd10_verified=True
     - If not verified: keeps Groq's original icd10 value, adds
       icd10_verified=False so the caller knows the code is unconfirmed
@@ -99,7 +103,7 @@ def enrich_conditions_with_verified_icd10(conditions: list) -> list:
         condition_name = condition.get("condition", "")
         groq_code = condition.get("icd10", "")
 
-        result = verify_icd10(condition_name)
+        result = verify_icd10(condition_name, groq_code) if groq_code.strip() else {"verified": False}
 
         if result["verified"]:
             updated["icd10"] = result["code"]

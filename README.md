@@ -131,12 +131,26 @@ Healthcare systems in the US already handle care transitions at scale through EH
 
 Both the API and Worker run on Render's free plan, which spins down containers after roughly 15 minutes of inactivity. The Worker must be awake before a case submission will process.
 
-**Before using the frontend, visit the worker URL first:**
+When a visitor requests live analysis, the frontend wakes the API and worker concurrently through readable `/health` requests, then submits the case once. The preparation screen explains the delay and offers recovery if startup times out. Opening the worker manually is a fallback rather than a prerequisite.
 
-1. Open https://cds-worker.onrender.com/ in a new tab and wait for it to return `worker alive` (up to 60 seconds on a cold start).
-2. Then open the frontend and submit a case normally.
+The API response is `{"status":"ok"}`; the worker response is `{"http_service":"awake"}`. These confirm HTTP startup, not database, Redis, Groq or Celery readiness. A job reaching `processing` confirms that Celery picked it up. The worker root URL still returns `worker alive` for manual checks.
 
-Skipping this step will cause the frontend to spin indefinitely after submission. The worker container is asleep and not consuming tasks from Redis, so submitted jobs never get picked up.
+The three example-case buttons prefill editable clinical narratives. **How it works** opens a separate, simulated walkthrough with a visible cursor, step progress, pause/next/exit controls and an input-first demonstration. It makes no clinical API requests and restores the visitor's draft on exit. Actual analysis is explicitly requested through submission.
+
+### Troubleshooting failed submissions
+
+`Error: Failed to fetch` is a browser network/CORS error, not evidence of a bad Groq key. An unhandled API exception can produce a response without CORS headers, hiding the actual server failure from the frontend. Database and queue failures now return readable HTTP 503 errors. Database connections are checked before reuse to recover from stale idle connections.
+
+1. Open the API `/health` URL and wait for its cold start. This endpoint confirms the API process is alive; it does **not** check Postgres, Redis, or Groq. Check the Render API logs at the time of a failed request.
+2. If a database error appears, check that the Supabase project is active and that `DATABASE_URL` is current in **both** Render services. Free Supabase projects can pause after inactivity. Restore a paused project in Supabase before retrying.
+3. If a queue error appears, check the Upstash database status, limits, and TLS Redis connection URL. `REDIS_URL` must match in the API and worker. The local `.env` does not update Render environment variables.
+4. If submission succeeds but stays `pending`, open the worker URL, then check **Celery's logs** for a successful Redis connection and task receipt. `worker alive` only confirms the separate HTTP health server is running; it does not prove Celery is consuming jobs.
+5. If a job fails during analysis, inspect the worker logs. A Groq 401 calls for replacing `GROQ_API_KEY` in the worker environment; a 429 calls for checking limits. Confirm model availability before changing models. The configured model is `openai/gpt-oss-120b`.
+6. For CORS errors, set `ALLOWED_ORIGINS` in both API and worker to the exact frontend origin (no trailing slash). For local browser development, include the actual local frontend origin, such as `http://127.0.0.1:8766`, in the comma-separated allowlist. Do not put API keys in frontend HTML.
+
+After updating environment variables, redeploy/restart the affected Render services. After deploying code changes, redeploy the API and worker Docker services and publish the frontend. The Docker image uses Python 3.13 to match `pyproject.toml` and `uv.lock`, and installs frozen production dependencies.
+
+The interface and startup changes require no new API keys. Keep the existing Groq key in the worker environment; rotate it only if revoked, exposed or rejected with an authentication error. A successful local commit/push does not by itself prove Render has finished deploying all three services. Verify a synthetic text case and a text-based PDF after deployment, including a cold start with no worker tab open.
 
 ---
 
@@ -245,7 +259,7 @@ clinical-decision-support-system-prototype/
 │   ├── fixtures/clinical_cases.py
 │   └── test_*.py
 ├── migrations/                  # Alembic migrations
-├── Dockerfile                   # python:3.11-slim, non-root appuser
+├── Dockerfile                   # python:3.13-slim, non-root appuser
 ├── docker-compose.yml           # Redis + API + Worker for local dev
 ├── render.yaml                  # Render Blueprint (all three services)
 ├── worker_health.py             # Minimal HTTP server for Render port binding

@@ -47,6 +47,18 @@ def test_verify_icd10_uses_top_result_only():
     assert result["code"] == "I60.9"
 
 
+def test_exact_verification_does_not_substitute_nearby_code():
+    response = _mock_nlm_response(1, [["I60.0", "Different subtype"]])
+    with patch('app.services.terminology.urllib.request.urlopen', return_value=response):
+        assert verify_icd10('SAH', 'I60.9') == {'verified': False}
+
+
+def test_exact_verification_finds_requested_code_among_results():
+    response = _mock_nlm_response(2, [["I60.0", "Different subtype"], ["I60.9", "Requested code"]])
+    with patch('app.services.terminology.urllib.request.urlopen', return_value=response):
+        assert verify_icd10('SAH', 'I60.9')['code'] == 'I60.9'
+
+
 def test_verify_icd10_returns_verified_false_when_no_results():
     mock_resp = _mock_nlm_response(0, [])
     with patch("app.services.terminology.urllib.request.urlopen", return_value=mock_resp):

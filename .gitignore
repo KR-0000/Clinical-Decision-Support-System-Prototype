@@ -12,3 +12,9 @@ wheels/
 .env
 .DS_Store
 
+# Local design tooling and review artifacts
+.agents/
+.codex/
+design-preview/*.jpg
+design-preview/*.png
+

@@ -13,14 +13,25 @@ The & runs the health server in the background, then Celery starts
 in the foreground. If Celery exits, the container exits (correct behavior).
 """
 import os
+import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path not in ('/', '/health'):
+            self.send_error(404)
+            return
         self.send_response(200)
+        origin = self.headers.get('Origin')
+        allowed = os.getenv('ALLOWED_ORIGINS', 'https://clinical-decision-support-system-1cqq.onrender.com,http://127.0.0.1:8000,http://localhost:8000').split(',')
+        self.send_header('Vary', 'Origin')
+        if origin and origin in [item.strip() for item in allowed]:
+            self.send_header('Access-Control-Allow-Origin', origin)
+        self.send_header('Content-Type', 'application/json' if self.path == '/health' else 'text/plain')
+        self.send_header('Cache-Control', 'no-store')
         self.end_headers()
-        self.wfile.write(b"worker alive")
+        self.wfile.write(json.dumps({'http_service': 'awake'}).encode() if self.path == '/health' else b'worker alive')
 
     def log_message(self, format, *args):
         # Suppress access logs to keep Render logs clean

@@ -28,6 +28,45 @@ def test_health_returns_ok(client):
     assert r.json() == {"status": "ok"}
 
 
+def test_database_failure_returns_readable_cors_error(client):
+    from sqlalchemy.exc import OperationalError
+    from app.main import ALLOWED_ORIGINS, app
+    from app.services.database import get_db
+
+    def unavailable_db():
+        raise OperationalError("SELECT secret", {}, Exception("private connection details"))
+
+    app.dependency_overrides[get_db] = unavailable_db
+    origin = ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS[0] != "*" else "https://frontend.example"
+    response = client.get("/jobs/status/unknown", headers={"Origin": origin})
+    assert response.status_code == 503
+    assert response.headers["access-control-allow-origin"] in (origin, "*")
+    assert "database is unavailable" in response.json()["detail"]
+    assert "secret" not in response.text
+    assert "private" not in response.text
+
+
+@pytest.mark.parametrize("pdf", [False, True])
+def test_queue_failure_returns_readable_cors_error_and_marks_job_failed(client, test_engine, pdf):
+    from kombu.exceptions import OperationalError
+    from sqlalchemy.orm import Session
+    from app.main import ALLOWED_ORIGINS
+    from app.models.job import Job
+
+    client.mock_task.delay.side_effect = OperationalError("private redis credentials")
+    origin = ALLOWED_ORIGINS[0] if ALLOWED_ORIGINS[0] != "*" else "https://frontend.example"
+    kwargs = {"files": {"file": ("test.pdf", b"%PDF-1.4 fake", "application/pdf")}} if pdf else {"data": {"case_text": VALID_CASE}}
+    response = client.post("/jobs/upload", headers={"Origin": origin}, **kwargs)
+    assert response.status_code == 503
+    assert response.headers["access-control-allow-origin"] in (origin, "*")
+    assert "queue is unavailable" in response.json()["detail"]
+    assert "private" not in response.text
+    with Session(test_engine) as session:
+        job = session.query(Job).one()
+        assert job.status == JobStatus.failed
+        assert "queue unavailable" in job.error_message
+
+
 # ── POST /jobs/upload — text input ────────────────────────────────────────────
 
 def test_upload_text_returns_job_id(client):

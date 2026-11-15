@@ -59,7 +59,7 @@ services:
   # ── Worker Service ────────────────────────────────────────────────────────
   # Deployed as type "web" because Render's free plan does not support type "worker".
   # The dockerCommand override replaces the Dockerfile CMD with the Celery command.
-  # This container never serves HTTP traffic — it only connects to Redis and processes jobs.
+  # A small HTTP server supports explicit demo startup; Celery consumes Redis jobs.
   - type: web
     name: cds-worker
     runtime: docker
@@ -71,7 +71,7 @@ services:
     # port binding requirement) then runs Celery in the foreground.
     dockerCommand: sh start_worker.sh
     plan: free
-    # No healthCheckPath — this service does not serve HTTP.
+    # /health confirms the HTTP process is awake, not Celery readiness.
     # Render will show it as "live" once the container starts and stays running.
     envVars:
       - key: DATABASE_URL
