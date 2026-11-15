@@ -176,7 +176,11 @@ Observations: temperature 37.9Â°C, heart rate 102/min, blood pressure 116/72 mmH
     } finally {clearTimeout(timer);signal.removeEventListener('abort',abort);}
   }
   async function wakeService(url,valid,elementId,deadline,run) {
+    let attempts = 0;
     while(currentRun(run) && Date.now()<deadline) {
+      attempts++;
+      const status = document.getElementById(elementId);
+      if(status) status.textContent = attempts === 1 ? 'Connecting…' : 'Still starting — retry ' + attempts;
       try {
         const body=await requestJSON(url,{},run.signal,Math.min(12000,deadline-Date.now()));
         if(valid(body)){const element=document.getElementById(elementId);if(element)element.textContent='Responding';return;}
@@ -191,7 +195,7 @@ Observations: temperature 37.9Â°C, heart rate 102/min, blood pressure 116/72 mmH
     setScreen('preparing');
     let phase='startup';
     try {
-      const deadline=Date.now()+90000;
+      const deadline=Date.now()+180000;
       await Promise.all([
         wakeService(API+'/health',body=>body?.status==='ok','api-startup',deadline,run),
         wakeService(WORKER+'/health',body=>body?.http_service==='awake','worker-startup',deadline,run)
@@ -245,7 +249,7 @@ Observations: temperature 37.9Â°C, heart rate 102/min, blood pressure 116/72 mmH
     cancelLive();liveError={kind:'status',message:'Status checking is paused. This does not cancel analysis on the server.'};setScreen('failed');
   }
   function renderPreparing() {
-    main.innerHTML=`<section class="state-page preparing"><h1>Preparing analysis</h1><p id="startup-message" role="status">Starting the analysis services. This can take about a minute after inactivity.</p><dl class="service-status"><dt>Analysis API</dt><dd id="api-startup">Waiting for a response</dd><dt>Background worker</dt><dd id="worker-startup">Waiting for a response</dd></dl><p>Your case will be submitted once both web services respond. Processing begins when the worker picks up the queued case.</p><details><summary>Taking longer than expected?</summary><p>You can open the worker page while it starts. Its response confirms the web process is awake; it does not confirm analysis has begun.</p><a href="${WORKER}/" target="_blank" rel="noopener noreferrer">Open worker page (new tab)</a></details><div class="state-actions"><button type="button" id="cancel-startup">Cancel startup</button></div></section>`;
+    main.innerHTML=`<section class="state-page preparing"><h1>Preparing analysis</h1><p id="startup-message" role="status">Starting the analysis services. Cold starts can take up to three minutes. Connection checks retry automatically.</p><dl class="service-status"><dt>Analysis API</dt><dd id="api-startup">Waiting for a response</dd><dt>Background worker</dt><dd id="worker-startup">Waiting for a response</dd></dl><p>Your case will be submitted once both web services respond. Processing begins when the worker picks up the queued case.</p><details><summary>Taking longer than expected?</summary><p>You can open the worker page while it starts. Its response confirms the web process is awake; it does not confirm analysis has begun.</p><a href="${WORKER}/" target="_blank" rel="noopener noreferrer">Open worker page (new tab)</a></details><div class="state-actions"><button type="button" id="cancel-startup">Cancel startup</button></div></section>`;
     document.getElementById('cancel-startup').addEventListener('click',()=>{cancelLive();setScreen(mode);});
   }
   function renderLiveProgress(state) {
